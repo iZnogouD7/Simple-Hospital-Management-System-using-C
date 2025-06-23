@@ -1,0 +1,377 @@
+package com.TicketSystem.TicketSystem.controller;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/admin")
+@RequiredArgsConstructor
+public class AdminController {
+    private final AdminService adminService;
+
+    @PostMapping("/support-staff")
+    public ResponseEntity<?> createSupportStaff(@RequestBody SupportStaffRequestDto dto) {
+        return adminService.createSupportStaff(dto);
+    }
+
+    @PutMapping("/support-staff/{id}")
+    public ResponseEntity<?> updateSupportStaff(@PathVariable Long id, @RequestBody SupportStaffRequestDto dto) {
+        return adminService.updateSupportStaff(id, dto);
+    }
+
+    @GetMapping("/support-staff")
+    public ResponseEntity<?> viewSupportStaff() {
+        return adminService.viewSupportStaff();
+    }
+
+    @PostMapping("/assign-ticket")
+    public ResponseEntity<?> assignTicket(@RequestBody AssignTicketRequestDto dto) {
+        return adminService.assignTicketToStaff(dto);
+    }
+
+    @GetMapping("/tickets")
+    public ResponseEntity<?> viewAllTickets() {
+        return adminService.viewAllIssuedTickets();
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<?> viewAllUsers() {
+        return adminService.viewAllRegisteredUsers();
+    }
+
+}
+
+package com.TicketSystem.TicketSystem.controller;
+
+
+import com.TicketSystem.TicketSystem.services.serviceImpl.AuthServiceImpl;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/auth")
+@RequiredArgsConstructor
+public class AuthController {
+    private final AuthServiceImpl authServiceImpl;
+
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody RegisterRequestDto dto) {
+        return authServiceImpl.register(dto);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequestDto dto) {
+        return authServiceImpl.login(dto);
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        return authServiceImpl.logout();
+    }
+}
+package com.TicketSystem.TicketSystem.controller;
+
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/staff")
+@RequiredArgsConstructor
+public class SupportStaffController {
+    private final SupportStaffService supportStaffService;
+
+    @GetMapping("/tickets")
+    public ResponseEntity<?> viewAssignedTickets() {
+        return supportStaffService.viewAssignedTickets();
+    }
+
+    @PutMapping("/tickets/{id}/status")
+    public ResponseEntity<?> updateTicketStatus(@PathVariable Long id, @RequestBody String newStatus) {
+        return supportStaffService.updateTicketStatus(id, newStatus);
+    }
+}
+package com.TicketSystem.TicketSystem.controller;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/tickets")
+@RequiredArgsConstructor
+public class TicketController {
+    private final TicketService ticketService;
+
+    @PostMapping
+    public ResponseEntity<?> createTicket(@RequestBody TicketRequestDto dto) {
+        return ticketService.createTicket(dto);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> updateTicket(@PathVariable Long id, @RequestBody TicketRequestDto dto) {
+        return ticketService.updateTicket(id, dto);
+    }
+
+    @GetMapping
+    public ResponseEntity<?> viewAllTickets() {
+        return ticketService.viewAllTickets();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<?> viewTicket(@PathVariable Long id) {
+        return ticketService.viewTicket(id);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteTicket(@PathVariable Long id) {
+        return ticketService.deleteTicket(id);
+    }
+}
+Servcie
+package com.TicketSystem.TicketSystem.services.serviceImpl;
+
+
+import com.TicketSystem.TicketSystem.repositories.RoleRepository;
+import com.TicketSystem.TicketSystem.repositories.UserRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class AuthServiceImpl {
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public ResponseEntity<?> register(RegisterRequestDto dto) {
+        Role role = roleRepository.findByRoleName("CUSTOMER")
+                .orElseThrow(() -> new RuntimeException("Role not found"));
+
+        User user = User.builder()
+                .fullName(dto.getFullName())
+                .email(dto.getEmail())
+                .password(passwordEncoder.encode(dto.getPassword()))
+                .address(dto.getAddress())
+                .contactNo(dto.getContactNo())
+                .status(UserStatus.ACTIVE)
+                .role(role)
+                .build();
+
+        userRepository.save(user);
+        return ResponseEntity.ok("User registered successfully");
+    }
+
+    public ResponseEntity<?> login(LoginRequestDto dto) {
+        // Stub logic – normally, you'd authenticate and generate JWT token here
+        return ResponseEntity.ok("Login successful (stub)");
+    }
+
+    public ResponseEntity<?> logout() {
+        // Stub logic for logout
+        return ResponseEntity.ok("Logout successful (stub)");
+    }
+}
+package com.TicketSystem.TicketSystem.services.serviceImpl;
+
+import com.TicketSystem.TicketSystem.services.TicketService;
+
+public class TicketServiceImpl implements TicketService {
+    private final TicketRepository ticketRepository;
+    private final UserRepository userRepository;
+    private final TicketTypeRepository ticketTypeRepository;
+
+    public ResponseEntity<?> createTicket(TicketRequestDto dto) {
+        User user = userRepository.findById(dto.getUserId()).orElseThrow();
+        TicketType ticketType = ticketTypeRepository.findById(dto.getTicketTypeId()).orElseThrow();
+
+        Ticket ticket = Ticket.builder()
+                .title(dto.getTitle())
+                .description(dto.getDescription())
+                .priority(dto.getPriority())
+                .status(TicketStatus.OPEN)
+                .user(user)
+                .ticketType(ticketType)
+                .build();
+
+        ticketRepository.save(ticket);
+        return ResponseEntity.ok(ticket);
+    }
+
+    public ResponseEntity<?> updateTicket(Long id, TicketRequestDto dto) {
+        Ticket ticket = ticketRepository.findById(id).orElseThrow();
+        ticket.setTitle(dto.getTitle());
+        ticket.setDescription(dto.getDescription());
+        ticket.setPriority(dto.getPriority());
+        ticketRepository.save(ticket);
+        return ResponseEntity.ok(ticket);
+    }
+
+    public ResponseEntity<?> viewAllTickets() {
+        List<Ticket> tickets = ticketRepository.findAll();
+        return ResponseEntity.ok(tickets);
+    }
+
+    public ResponseEntity<?> viewTicket(Long id) {
+        Ticket ticket = ticketRepository.findById(id).orElseThrow();
+        return ResponseEntity.ok(ticket);
+    }
+
+    public ResponseEntity<?> deleteTicket(Long id) {
+        ticketRepository.deleteById(id);
+        return ResponseEntity.ok("Ticket deleted successfully");
+    }
+}
+models
+package com.TicketSystem.TicketSystem.models;
+
+import com.TicketSystem.TicketSystem.base.BaseEntity;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.*;
+
+@Entity
+@Table(name = "Roles_Table")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Role extends BaseEntity {
+    private String roleName;
+
+//    private List<User> user;
+}
+package com.TicketSystem.TicketSystem.models;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "Support_Staff_Table")
+public class SupportStaff {
+    @Id
+    private Long id;
+
+    @OneToOne
+    @MapsId
+    @JoinColumn(name = "User_Id")
+    private User user;
+
+    private boolean isAvailable;
+}
+package com.TicketSystem.TicketSystem.models;
+
+import com.TicketSystem.TicketSystem.base.AuditBaseEntity;
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "Tickets_Table")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class Ticket extends AuditBaseEntity {
+    private String title;
+    private String description;
+
+    @Enumerated(EnumType.STRING)
+    private TicketStatus status;
+
+    @ManyToOne
+    @JoinColumn(name = "ticket_type_id")
+    private TicketType ticketType;
+
+
+    @Enumerated(EnumType.STRING)
+    private TicketPriority priority;
+
+    @ManyToOne
+    @JoinColumn(name = "customer_id")
+    private User user;
+
+    @ManyToOne
+    @JoinColumn(name = "support_staff_id")
+    private SupportStaff supportStaff;
+}
+package com.TicketSystem.TicketSystem.models;
+
+public enum TicketPriority {
+    LOW,
+    MEDIUM,
+    HIGH
+}
+package com.TicketSystem.TicketSystem.models;
+
+public enum TicketStatus {
+    PENDING,
+    IN_PROGRESS,
+    RESOLVED,
+    CLOSED
+}
+package com.TicketSystem.TicketSystem.models;
+
+import com.TicketSystem.TicketSystem.base.BaseEntity;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.*;
+
+@Entity
+@Table(name = "Ticket_Type_Table")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class TicketType extends BaseEntity {
+    private String type;
+}
+package com.TicketSystem.TicketSystem.models;
+
+import com.TicketSystem.TicketSystem.base.AuditBaseEntity;
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.util.List;
+
+@Entity
+@Table(name = "Users_Table")
+//@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class User extends AuditBaseEntity {
+    private String fullName;
+    private String email;
+    private String password;
+    private String address;
+    private String contactNo;
+
+    @ManyToOne
+    @JoinColumn(name = "role_id")
+    private Role role;
+
+    @OneToMany(mappedBy = "user")
+    private List<Ticket> customerTicket;
+
+    @Enumerated(EnumType.STRING)
+    private UserStatus status;
+}
+package com.TicketSystem.TicketSystem.models;
+
+//public class UserStatus {
+//}
+public enum UserStatus{
+    ACTIVE,INACTIVE,BLOCKED
+}

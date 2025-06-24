@@ -375,3 +375,94 @@ package com.TicketSystem.TicketSystem.models;
 public enum UserStatus{
     ACTIVE,INACTIVE,BLOCKED
 }
+package com.example.CustomerSupportTicket.controllers;
+
+import com.example.CustomerSupportTicket.base.APIResponse;
+import com.example.CustomerSupportTicket.dtos.requestdto.RegisterRequestDto;
+import com.example.CustomerSupportTicket.dtos.responsedto.*;
+import com.example.CustomerSupportTicket.services.AdminService;
+import com.example.CustomerSupportTicket.utils.ResponseUtil;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1/admin")
+@RequiredArgsConstructor
+public class AdminController {
+
+    private final AdminService adminService;
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @PostMapping("/create-staff")
+    public ResponseEntity<APIResponse<NewStaffResponseDto>> createStaffUser(@RequestBody RegisterRequestDto reqDto) {
+        if (reqDto == null) {
+            throw new NullPointerException("Empty....!!");
+        }
+        NewStaffResponseDto responseDto = adminService.createStaffUser(reqDto);
+        return ResponseUtil.success(responseDto, "Staff Created Successfully", HttpStatus.CREATED);
+    }
+
+    @GetMapping("/staff")
+    public ResponseEntity<APIResponse<List<UserResDto>>> getAllStaff(){
+
+        List<UserResDto> resDtoList = adminService.getAllStaff();
+
+        return ResponseUtil.success(resDtoList,"Staff Fetch Successfully",HttpStatus.OK);
+    }
+
+    @GetMapping("/staff/{id}")
+    public ResponseEntity<APIResponse<UserDetailResDto>> getStaffById(@PathVariable Long id){
+        UserDetailResDto resDto = adminService.getStaffById(id);
+        return ResponseUtil.success(resDto,"Staff Fetch Successfully",HttpStatus.OK);
+    }
+
+
+
+    @PutMapping("/staff/{id}")
+    public ResponseEntity<APIResponse<UserDetailResDto>> updateStaffUser(){
+
+        return null;
+    }
+
+
+    @GetMapping("/tickets")
+    public ResponseEntity<APIResponse<List<TicketResDto>>> getAllTickets() {
+        List<TicketResDto> resDtoList = adminService.getAllTickets();
+
+        return ResponseUtil.success(resDtoList, "All Tickets", HttpStatus.OK);
+    }
+
+    @GetMapping("/ticket/{id}")
+    public ResponseEntity<APIResponse<TicketDetailResDto>> getTicketById(@PathVariable Long id) {
+        TicketDetailResDto resDtoList = adminService.getTicketById(id);
+
+        return ResponseUtil.success(resDtoList, "All Tickets", HttpStatus.OK);
+    }
+
+
+    @PutMapping("/ticket/{id}/assign/{staffId}")
+    public ResponseEntity<APIResponse<TicketDetailResDto>> assignTicket(@PathVariable Long id,
+    @PathVariable Long staffId) {
+       TicketDetailResDto resDto =  adminService.assignTicket(id, staffId);
+            return ResponseUtil.success(resDto, "Ticket Assigned", HttpStatus.OK);
+//        return ResponseUtil.error(null,"Error Occurred", HttpStatus.BAD_REQUEST);
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<APIResponse<List<UserResDto>>> getAllCustomers(){
+        List<UserResDto> resDtoList = adminService.getAllCustomer();
+
+        return ResponseUtil.success(resDtoList,"Customers Fetch Successfully",HttpStatus.OK);
+    }
+
+    @GetMapping("/users/{id}")
+    public ResponseEntity<APIResponse<UserDetailResDto>> getCustomerById(@PathVariable Long id){
+        UserDetailResDto resDto = adminService.getCustomerById(id);
+        return ResponseUtil.success(resDto,"Customer Fetch Successfully",HttpStatus.OK);
+    }
+}

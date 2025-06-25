@@ -466,3 +466,88 @@ public class AdminController {
         return ResponseUtil.success(resDto,"Customer Fetch Successfully",HttpStatus.OK);
     }
 }
+
+
+
+
+
+
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ragnar.main.API.DTOs.Auth.LoginDTO;
+import com.ragnar.main.API.DTOs.Book.CreateBookDTO;
+import com.ragnar.main.Application.IRepositories.IUserRepository;
+import com.ragnar.main.Application.IServices.IAuthService;
+import com.ragnar.main.Domain.Enums.GenreType;
+import com.ragnar.main.Util.Helpers.DateHelper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+ 
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+ 
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class BookControllerTest {
+    @Autowired
+    private MockMvc mvc;
+ 
+    @Autowired
+    private ObjectMapper mapper;
+ 
+    @Autowired
+    private IUserRepository userRepository;
+ 
+    @Autowired
+    private IAuthService authService;
+ 
+    private String jwtToken;
+ 
+    @BeforeEach
+    void setup() {
+        var model = LoginDTO.builder()
+                .username("superadmin")
+                .password("superadmin@123")
+                .build();
+        var response = authService.LoginUser(model);
+        jwtToken = response.getData().getToken();
+    }
+ 
+    @Test
+    void createBook() throws Exception {
+        var dto = CreateBookDTO.builder()
+                .bookName("Test Book")
+                .publicationYear(DateHelper.ParseDate("2025-06-24"))
+                .Genre(GenreType.ACTION)
+                .Price(1000)
+                .authorId(1L)
+                .build();
+ 
+        mvc.perform(MockMvcRequestBuilders
+            .post("/api/v1/Book")
+            .header("Authorization", "Bearer " + jwtToken)
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(mapper.writeValueAsString(dto))
+        )
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.success").value(true))
+        .andExpect(jsonPath("$.data").exists());
+    }
+ 
+    @Test
+    void getAllBooks() {
+    }
+ 
+    @Test
+    void deleteBook() {
+    }
+}

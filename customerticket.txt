@@ -1113,3 +1113,69 @@ public class UserControllerTest {
                 .andExpect(jsonPath("$.message").value("Ticket Deleted Successfully"));
     }
 }
+
+
+package com.example.CustomerSupportTicket.controllers;
+
+import com.example.CustomerSupportTicket.dtos.requestdto.LoginReqDto;
+import com.example.CustomerSupportTicket.dtos.requestdto.RegisterRequestDto;
+import com.example.CustomerSupportTicket.dtos.requestdto.TicketReqDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+public class TicketControllerTest {
+    @Autowired
+    private MockMvc mvc;
+
+    @Autowired
+    private ObjectMapper mapper;
+
+    private String jwtToken;
+    @BeforeEach
+    void setup() throws Exception {
+        // Register admin user
+        var registerDto = new RegisterRequestDto("Admin User", "admin@example.com", "admin123", "Kathmandu", "9800000000");
+        mvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/create-user")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(registerDto)))
+                .andExpect(status().isCreated());
+
+        // Login admin user
+        var loginDto = new LoginReqDto("admin@example.com", "admin123");
+        String loginContent = mapper.writeValueAsString(loginDto);
+        var result = mvc.perform(MockMvcRequestBuilders.post("/api/v1/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginContent))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        jwtToken = mapper.readTree(result.getResponse().getContentAsString())
+                .get("data").get("token").asText();
+    }
+
+    @Test
+    void createTicket() throws Exception{
+        var ticketDto = new TicketReqDto("Title", "Desc", "Bug", "HIGH");
+
+        mvc.perform(MockMvcRequestBuilders.post("/api/v1/ticket")
+                        .header("Authorization", "Bearer " + jwtToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(mapper.writeValueAsString(ticketDto)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Ticket Created"));
+    }
+}

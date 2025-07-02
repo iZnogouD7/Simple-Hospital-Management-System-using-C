@@ -1179,3 +1179,305 @@ public class TicketControllerTest {
                 .andExpect(jsonPath("$.message").value("Ticket Created"));
     }
 }
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Advanced To-Do List</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="header">
+    <h1>Today's To-Do List</h1>
+    <p id="dateTime"></p>
+  </div>
+
+  <div class="controls">
+    <input type="text" id="taskInput" placeholder="Enter task" />
+    <input type="text" id="subtaskInput" placeholder="Subtask (optional)" />
+    <input type="date" id="dueDateInput" />
+    <select id="categorySelect">
+      <option value="General">General</option>
+      <option value="Work">Work</option>
+      <option value="Personal">Personal</option>
+    </select>
+    <select id="prioritySelect">
+      <option value="Low">Low</option>
+      <option value="Medium" selected>Medium</option>
+      <option value="High">High</option>
+    </select>
+    <button onclick="addTask()">Add Task</button>
+    <select id="sortSelect" onchange="renderTasks()">
+      <option value="newest">Newest</option>
+      <option value="oldest">Oldest</option>
+      <option value="priorityHighLow">Priority High → Low</option>
+      <option value="priorityLowHigh">Priority Low → High</option>
+    </select>
+  </div>
+
+  <div class="task-layout">
+    <div class="task-column" id="uncompletedColumn">
+      <h2>📝 Uncompleted Tasks</h2>
+      <ul id="uncompletedList"></ul>
+    </div>
+    <div class="task-column" id="completedColumn">
+      <h2>✅ Completed Tasks</h2>
+      <ul id="completedList"></ul>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
+
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(to right, #dfe9f3, #ffffff);
+  padding: 20px;
+}
+
+.header {
+  text-align: center;
+}
+
+#dateTime {
+  color: #444;
+  font-size: 14px;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 20px auto;
+  justify-content: center;
+}
+
+.controls input,
+.controls select,
+.controls button {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  min-width: 150px;
+}
+
+.controls button {
+  background-color: #4CAF50;
+  color: white;
+  cursor: pointer;
+  border: none;
+}
+
+.task-layout {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  margin-top: 30px;
+}
+
+.task-column {
+  flex: 1;
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  min-height: 300px;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  background-color: #f9f9f9;
+  margin-bottom: 10px;
+  padding: 12px;
+  border-left: 6px solid #ccc;
+  border-radius: 6px;
+}
+
+li.completed {
+  background-color: #e0ffe0;
+  text-decoration: line-through;
+  color: gray;
+}
+
+.priority-High { border-left-color: #e53935; }
+.priority-Medium { border-left-color: #ffb300; }
+.priority-Low { border-left-color: #43a047; }
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.task-buttons button {
+  margin-left: 6px;
+  padding: 4px 8px;
+  font-size: 12px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.edit-btn { background-color: #1976d2; color: white; }
+.delete-btn { background-color: #d32f2f; color: white; }
+
+.task-details {
+  font-size: 13px;
+  color: #555;
+  margin-top: 5px;
+}
+
+.category-General { color: #333; }
+.category-Work { color: #00796b; font-weight: bold; }
+.category-Personal { color: #6a1b9a; font-weight: bold; }
+
+.subtask {
+  font-size: 12px;
+  margin-top: 4px;
+  padding-left: 10px;
+  color: #666;
+}
+
+
+let tasks = [];
+
+window.onload = () => {
+  updateDateTime();
+  loadTasks();
+  renderTasks();
+  setInterval(updateDateTime, 1000);
+};
+
+function updateDateTime() {
+  const now = new Date();
+  document.getElementById("dateTime").innerText = now.toLocaleString();
+}
+
+function addTask() {
+  const text = document.getElementById("taskInput").value.trim();
+  const subtask = document.getElementById("subtaskInput").value.trim();
+  const dueDate = document.getElementById("dueDateInput").value;
+  const priority = document.getElementById("prioritySelect").value;
+  const category = document.getElementById("categorySelect").value;
+
+  if (!text) {
+    alert("Please enter a task.");
+    return;
+  }
+
+  tasks.push({
+    text,
+    subtask,
+    dueDate,
+    category,
+    priority,
+    completed: false,
+    createdAt: new Date().toISOString()
+  });
+
+  document.getElementById("taskInput").value = "";
+  document.getElementById("subtaskInput").value = "";
+  document.getElementById("dueDateInput").value = "";
+
+  saveTasks();
+  renderTasks();
+}
+
+function renderTasks() {
+  const uncompletedList = document.getElementById("uncompletedList");
+  const completedList = document.getElementById("completedList");
+  const sortType = document.getElementById("sortSelect").value;
+
+  uncompletedList.innerHTML = "";
+  completedList.innerHTML = "";
+
+  let sortedTasks = [...tasks];
+
+  if (sortType === "newest") {
+    sortedTasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  } else if (sortType === "oldest") {
+    sortedTasks.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+  } else if (sortType === "priorityHighLow") {
+    const order = { High: 3, Medium: 2, Low: 1 };
+    sortedTasks.sort((a, b) => order[b.priority] - order[a.priority]);
+  } else if (sortType === "priorityLowHigh") {
+    const order = { High: 3, Medium: 2, Low: 1 };
+    sortedTasks.sort((a, b) => order[a.priority] - order[b.priority]);
+  }
+
+  sortedTasks.forEach((task, index) => {
+    const li = document.createElement("li");
+    li.className = `${task.completed ? "completed" : ""} priority-${task.priority}`;
+
+    const categoryClass = `category-${task.category}`;
+
+    li.innerHTML = `
+      <div class="task-header">
+        <div>
+          <input type="checkbox" ${task.completed ? "checked" : ""} onchange="toggleComplete(${index})" />
+          <strong>${task.text}</strong>
+        </div>
+        <div class="task-buttons">
+          <button class="edit-btn" onclick="editTask(${index})">Edit</button>
+          <button class="delete-btn" onclick="deleteTask(${index})">Delete</button>
+        </div>
+      </div>
+      <div class="task-details">
+        <span class="${categoryClass}">📁 ${task.category}</span> | 
+        🗓 Due: ${task.dueDate || 'N/A'} | 
+        ⏳ Priority: ${task.priority}
+      </div>
+      ${task.subtask ? `<div class="subtask">🔹 Subtask: ${task.subtask}</div>` : ""}
+    `;
+
+    task.completed
+      ? completedList.appendChild(li)
+      : uncompletedList.appendChild(li);
+  });
+}
+
+function toggleComplete(index) {
+  tasks[index].completed = !tasks[index].completed;
+  saveTasks();
+  renderTasks();
+}
+
+function editTask(index) {
+  const newText = prompt("Edit task:", tasks[index].text);
+  if (newText !== null && newText.trim() !== "") {
+    tasks[index].text = newText.trim();
+    saveTasks();
+    renderTasks();
+  }
+}
+
+function deleteTask(index) {
+  if (confirm("Are you sure you want to delete this task?")) {
+    tasks.splice(index, 1);
+    saveTasks();
+    renderTasks();
+  }
+}
+
+function saveTasks() {
+  localStorage.setItem("tasks", JSON.stringify(tasks));
+}
+
+function loadTasks() {
+  const data = localStorage.getItem("tasks");
+  if (data) {
+    tasks = JSON.parse(data);
+  }
+}
+

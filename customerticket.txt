@@ -1,3 +1,550 @@
+import React, { useState, useEffect } from "react";
+import "./App.css";
+
+const App = () => {
+  const [tasks, setTasks] = useState([]);
+  const [day, setDay] = useState("");
+  const [date, setDate] = useState("");
+  const [formData, setFormData] = useState({
+    text: "",
+    subtask: "",
+    dueDate: "",
+    priority: "Medium",
+    category: "General"
+  });
+  const [sortType, setSortType] = useState("newest");
+
+  useEffect(() => {
+    // Load tasks from localStorage
+    try {
+      const savedTasks = JSON.parse(localStorage.getItem("tasks")) || [];
+      setTasks(savedTasks);
+    } catch (error) {
+      console.error("Failed to load tasks from localStorage", error);
+      setTasks([]);
+    }
+
+    // Set up day and date
+    const today = new Date();
+    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(today);
+    const month = new Intl.DateTimeFormat("en-US", { month: "long" }).format(today);
+    const dayNum = today.getDate();
+    const year = today.getFullYear();
+    setDay(weekday);
+    setDate(`${month} ${dayNum}, ${year}`);
+  }, []);
+
+  useEffect(() => {
+    // Save tasks to localStorage whenever they change
+    try {
+      localStorage.setItem("tasks", JSON.stringify(tasks));
+    } catch (error) {
+      console.error("Failed to save tasks to localStorage", error);
+    }
+  }, [tasks]);
+
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    if (!formData.text.trim()) return alert("Please enter a task.");
+    
+    const newTask = {
+      ...formData,
+      completed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      id: Date.now()
+    };
+    
+    const updatedTasks = [...tasks, newTask];
+    setTasks(updatedTasks);
+    setFormData({ 
+      text: "", 
+      subtask: "", 
+      dueDate: "", 
+      priority: "Medium", 
+      category: "General" 
+    });
+  };
+
+  const handleToggle = id => {
+    const updatedTasks = tasks.map(task =>
+      task.id === id ? { 
+        ...task, 
+        completed: !task.completed, 
+        updatedAt: new Date().toISOString() 
+      } : task
+    );
+    setTasks(updatedTasks);
+  };
+
+  const handleDelete = id => {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      const updatedTasks = tasks.filter(task => task.id !== id);
+      setTasks(updatedTasks);
+    }
+  };
+
+  // Sort tasks
+  const sortedTasks = [...tasks];
+  const priorityOrder = { High: 3, Medium: 2, Low: 1 };
+
+  if (sortType === "newest") {
+    sortedTasks.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  } else if (sortType === "oldest") {
+    sortedTasks.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+  } else if (sortType === "priorityHighLow") {
+    sortedTasks.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
+  } else if (sortType === "priorityLowHigh") {
+    sortedTasks.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+  }
+
+  return (
+    <div className="container">
+      <h1>Today's To-Do List</h1>
+      <p>
+        <strong>{day}</strong> — {date}
+      </p>
+
+      <form className="form-section" onSubmit={handleSubmit}>
+        <input 
+          name="text" 
+          value={formData.text} 
+          onChange={handleChange} 
+          placeholder="Task" 
+          required
+        />
+        <input 
+          name="subtask" 
+          value={formData.subtask} 
+          onChange={handleChange} 
+          placeholder="Subtask (optional)" 
+        />
+        <input 
+          type="date" 
+          name="dueDate" 
+          value={formData.dueDate} 
+          onChange={handleChange} 
+        />
+        <select 
+          name="category" 
+          value={formData.category} 
+          onChange={handleChange}
+        >
+          <option value="General">General</option>
+          <option value="Work">Work</option>
+          <option value="Personal">Personal</option>
+        </select>
+        <select 
+          name="priority" 
+          value={formData.priority} 
+          onChange={handleChange}
+        >
+          <option value="Low">Low</option>
+          <option value="Medium">Medium</option>
+          <option value="High">High</option>
+        </select>
+        <button type="submit">Add Task</button>
+        <select 
+          value={sortType} 
+          onChange={e => setSortType(e.target.value)}
+        >
+          <option value="newest">Newest</option>
+          <option value="oldest">Oldest</option>
+          <option value="priorityHighLow">Priority High → Low</option>
+          <option value="priorityLowHigh">Priority Low → High</option>
+        </select>
+      </form>
+
+      <div className="task-layout">
+        <div className="task-column">
+          <h2>📝 Uncompleted Tasks</h2>
+          <ul>
+            {sortedTasks.filter(t => !t.completed).map(task => (
+              <li key={task.id} className={`priority-${task.priority}`}>
+                <input 
+                  type="checkbox" 
+                  checked={false} 
+                  onChange={() => handleToggle(task.id)} 
+                />
+                <div className="task-body">
+                  <strong>{task.text}</strong>
+                  {task.subtask && <div>🔹 {task.subtask}</div>}
+                  <div className="task-details">
+                    📁 {task.category} | 🗓 Due: {task.dueDate || "N/A"} | ⏳ {task.priority}
+                  </div>
+                </div>
+                <button 
+                  className="delete-btn" 
+                  onClick={() => handleDelete(task.id)}
+                >
+                  ✖
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="task-column">
+          <h2>✅ Completed Tasks</h2>
+          <ul>
+            {sortedTasks.filter(t => t.completed).map(task => (
+              <li key={task.id} className={`priority-${task.priority} completed`}>
+                <input 
+                  type="checkbox" 
+                  checked={true} 
+                  onChange={() => handleToggle(task.id)} 
+                />
+                <div className="task-body">
+                  <strong>{task.text}</strong>
+                  {task.subtask && <div>🔹 {task.subtask}</div>}
+                  <div className="task-details">
+                    📁 {task.category} | 🗓 Due: {task.dueDate || "N/A"} | ⏳ {task.priority}
+                  </div>
+                </div>
+                <button 
+                  className="delete-btn" 
+                  onClick={() => handleDelete(task.id)}
+                >
+                  ✖
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default App;
+
+
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f5f5f5;
+  margin: 0;
+  padding: 0;
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+h1 {
+  color: #333;
+  text-align: center;
+}
+
+p {
+  text-align: center;
+  color: #666;
+  margin-bottom: 30px;
+}
+
+.form-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 30px;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.form-section input,
+.form-section select,
+.form-section button {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.form-section input[type="text"],
+.form-section input[type="date"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+.form-section button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+
+.form-section button:hover {
+  background-color: #45a049;
+}
+
+.task-layout {
+  display: flex;
+  gap: 20px;
+}
+
+.task-column {
+  flex: 1;
+  background: #fff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.task-column h2 {
+  border-bottom: 2px solid #eee;
+  padding-bottom: 10px;
+  color: #444;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+}
+
+li {
+  display: flex;
+  align-items: center;
+  padding: 15px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+  transition: all 0.3s;
+}
+
+li:hover {
+  background-color: #f0f0f0;
+}
+
+li.completed {
+  opacity: 0.7;
+}
+
+li.completed .task-body strong {
+  text-decoration: line-through;
+  color: #888;
+}
+
+.priority-High {
+  border-left: 4px solid #f44336;
+}
+
+.priority-Medium {
+  border-left: 4px solid #ff9800;
+}
+
+.priority-Low {
+  border-left: 4px solid #4CAF50;
+}
+
+.task-body {
+  flex: 1;
+  margin: 0 15px;
+}
+
+.task-details {
+  font-size: 0.8em;
+  color: #666;
+  margin-top: 5px;
+}
+
+.delete-btn {
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 1.2em;
+  padding: 5px 10px;
+}
+
+.delete-btn:hover {
+  color: #f44336;
+}
+
+input[type="checkbox"] {
+  transform: scale(1.3);
+  margin-right: 10px;
+}
+
+@media (max-width: 768px) {
+  .task-layout {
+    flex-direction: column;
+  }
+  
+  .form-section {
+    flex-direction: column;
+  }
+}
+
+
+
+def test_password_masking_toggle(driver):
+    login_page = LoginPage(driver)
+    driver.get(login_page.url)
+    
+    password_field = login_page.find_element(LoginPageLocators.password_field)
+    toggle_button = login_page.find_element((By.CSS_SELECTOR, ".password-visibility-toggle"))
+    
+    # Verify password is masked by default
+    assert password_field.get_attribute("type") == "password", "Password should be masked initially"
+    
+    # Click toggle and verify unmasking
+    toggle_button.click()
+    assert password_field.get_attribute("type") == "text", "Password should be visible after toggle"
+    
+    # Click again and verify re-masking
+    toggle_button.click()
+    assert password_field.get_attribute("type") == "password", "Password should re-mask after second toggle"
+
+
+def test_default_sorting_az(login_and_go_to_product_page):
+    product_page = login_and_go_to_product_page
+    items = product_page.get_all_items_names()
+    
+    # Verify items are sorted A-Z by default
+    assert items == sorted(items), f"Items not sorted A-Z by default. First mismatch: {next((x,y) for x,y in zip(items, sorted(items)) if x != y)}"
+@pytest.mark.parametrize("filter_option,expected_sort", [
+    ("Name (A to Z)", "asc"),
+    ("Name (Z to A)", "desc"),
+    ("Price (low to high)", "asc"),
+    ("Price (high to low)", "desc")
+])
+def test_all_sorting_filters(login_and_go_to_product_page, filter_option, expected_sort):
+    product_page = login_and_go_to_product_page
+    
+    # Apply filter
+    product_page.select_filter_button(filter_option)
+    
+    # Get appropriate values to compare
+    if "Price" in filter_option:
+        values = product_page.get_all_items_price()
+    else:
+        values = product_page.get_all_items_names()
+    
+    # Verify sorting
+    if expected_sort == "asc":
+        assert values == sorted(values), f"{filter_option} not working"
+    else:
+        assert values == sorted(values, reverse=True), f"{filter_option} not working"
+
+@pytest.mark.parametrize("firstname,lastname,zipcode", [
+    ("Tést@User", "Jöhn$Doe", "123!@#"),
+    ("Олег", "김철수", "東京")
+])
+def test_special_character_checkout(driver, firstname, lastname, zipcode):
+    # Full checkout flow with special chars
+    login_page = LoginPage(driver)
+    login_page.login(valid_user, valid_pass)
+    
+    product_page = ProductPage(driver)
+    product_page.add_single_item(ProductPageLocators.add_back_pack_path)
+    product_page.click_on_cart_button()
+    
+    cart_page = CartPage(driver)
+    cart_page.click_checkout_button()
+    
+    checkout_page = CheckoutPage(driver)
+    checkout_page.enter_checkout_info(firstname, lastname, zipcode)
+    
+    assert "checkout-step-two" in driver.current_url, \
+        f"Checkout failed with special chars: {firstname}/{lastname}/{zipcode}"
+def test_checkout_field_limits(driver):
+    checkout_page = go_to_checkout_page(driver)  # Implement this fixture
+    
+    # Test first name max length (assuming 50 chars)
+    long_name = "A" * 51
+    checkout_page.type_in_element(CheckoutPageLocators.first_name_path, long_name)
+    entered_text = checkout_page.find_element(CheckoutPageLocators.first_name_path).get_attribute("value")
+    assert len(entered_text) == 50, "First name should truncate at 50 chars"
+
+
+# tests/test_cart_integrity.py
+def test_added_items_match_cart_contents(driver):
+    # Setup
+    login_page = LoginPage(driver)
+    product_page = ProductPage(driver)
+    cart_page = CartPage(driver)
+    
+    # Test data
+    test_items = [
+        (ProductPageLocators.add_back_pack_path, "Sauce Labs Backpack", 29.99),
+        (ProductPageLocators.add_bike_light_path, "Sauce Labs Bike Light", 9.99)
+    ]
+    
+    # Add items
+    for locator, _, _ in test_items:
+        product_page.add_single_item(locator)
+    
+    # Verify cart
+    product_page.click_on_cart_button()
+    cart_items = cart_page.get_cart_items()  # Implement this method
+    
+    for i, (_, expected_name, expected_price) in enumerate(test_items):
+        assert cart_items[i]['name'] == expected_name, \
+            f"Item {i} name mismatch. Expected {expected_name}, got {cart_items[i]['name']}"
+        assert cart_items[i]['price'] == expected_price, \
+            f"Item {i} price mismatch. Expected {expected_price}, got {cart_items[i]['price']}"
+# pages/cart_page.py
+def get_cart_items(self):
+    items = []
+    elements = self.find_elements((By.CLASS_NAME, "cart_item"))
+    for element in elements:
+        items.append({
+            'name': element.find_element(By.CLASS_NAME, "inventory_item_name").text,
+            'price': float(element.find_element(By.CLASS_NAME, "inventory_item_price").text.replace('$', '')),
+            'quantity': int(element.find_element(By.CLASS_NAME, "cart_quantity").text)
+        })
+    return items
+# tests/test_price_calculations.py
+def test_checkout_price_calculations(driver):
+    # Setup
+    login_page = LoginPage(driver)
+    product_page = ProductPage(driver)
+    checkout_page = CheckoutPage(driver)
+    
+    # Add known items
+    product_page.add_single_item(ProductPageLocators.add_back_pack_path)  # $29.99
+    product_page.add_single_item(ProductPageLocators.add_bike_light_path)  # $9.99
+    product_page.click_on_cart_button()
+    cart_page.click_checkout_button()
+    
+    # Enter checkout info
+    checkout_page.enter_checkout_info("John", "Doe", "12345")
+    
+    # Verify calculations
+    item_total = checkout_page.get_summary_value("Item total")  # $39.98
+    tax = checkout_page.get_summary_value("Tax")  # $3.20 (8% of $39.98)
+    total = checkout_page.get_summary_value("Total")  # $43.18
+    
+    assert tax == round(item_total * 0.08, 2), \
+        f"Tax calculation wrong. Expected {round(item_total*0.08,2)}, got {tax}"
+    assert total == item_total + tax, \
+        f"Total calculation wrong. Expected {item_total+tax}, got {total}"
+# pages/checkout_page.py
+def get_summary_value(self, label):
+    element = self.find_element((By.XPATH, f"//div[contains(text(),'{label}')]/following-sibling::div"))
+    return float(element.text.replace('$', ''))
+
+
+
+
+
+
+
+
+
+
+
+
 package com.TicketSystem.TicketSystem.controller;
 
 import lombok.RequiredArgsConstructor;

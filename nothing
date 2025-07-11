@@ -1,0 +1,277 @@
+├── conftest.py
+├── constants.py
+├── locators/
+│   ├── __init__.py
+│   ├── base_locators.py
+│   ├── cart_locators.py
+│   └── product_locators.py
+├── pages/
+│   ├── __init__.py
+│   ├── base_page.py
+│   ├── cart_page.py
+│   ├── checkout_page.py
+│   └── product_page.py
+├── test_data/
+│   ├── __init__.py
+│   └── products.py
+├── utils/
+│   ├── __init__.py
+│   └── product_verifier.py
+└── tests/
+    ├── __init__.py
+    ├── test_data_driven_flows.py
+    └── test_smoke_flows.py
+conftest:
+import pytest
+from selenium import webdriver
+from constants import BASE_URL, STANDARD_USER
+
+@pytest.fixture(scope="session")
+def driver():
+    """Fixture to initialize and cleanup WebDriver"""
+    print("\nInitializing ChromeDriver...")
+    driver = webdriver.Chrome()
+    driver.maximize_window()
+    driver.get(BASE_URL)
+    yield driver
+    print("\nClosing browser...")
+    driver.quit()
+
+@pytest.fixture
+def login(driver):
+    """Fixture to login once per test"""
+    from pages.login_page import LoginPage
+    print(f"\nLogging in as {STANDARD_USER[0]}...")
+    LoginPage(driver).login(*STANDARD_USER)
+    yield
+    print("Login cleanup - no action needed")
+
+@pytest.fixture
+def clean_cart(driver):
+    """Fixture to ensure cart is empty before test"""
+    yield
+    from pages.cart_page import CartPage
+    print("\nCleaning up cart...")
+    CartPage(driver).empty_cart()  # Implement this method in CartPage
+
+# Application Constants
+BASE_URL = "https://www.saucedemo.com/"
+STANDARD_USER = ("standard_user", "secret_sauce")
+
+# Timeouts
+PAGE_LOAD_TIMEOUT = 15
+ELEMENT_TIMEOUT = 10
+
+
+from selenium.webdriver.common.by import By
+
+class BaseLocators:
+    """Shared locators across all pages"""
+    MENU_BUTTON = (By.ID, "react-burger-menu-btn")
+    CART_BADGE = (By.CLASS_NAME, "shopping_cart_badge")
+
+from selenium.webdriver.common.by import By
+
+class ProductLocators:
+    """Locators for product listing and details"""
+    
+    @staticmethod
+    def product_card_by_name(name):
+        """Dynamic locator to find product container by name"""
+        return (By.XPATH, f"//div[text()='{name}']/ancestor::div[@class='inventory_item']")
+    
+    # Product attributes
+    NAME = (By.CLASS_NAME, "inventory_item_name")
+    PRICE = (By.CLASS_NAME, "inventory_item_price")
+    DESC = (By.CLASS_NAME, "inventory_item_desc")
+    IMAGE = (By.CLASS_NAME, "inventory_item_img")
+    ADD_BUTTON = (By.XPATH, ".//button[contains(@id,'add-to-cart')]")
+
+from selenium.webdriver.common.by import By
+
+class CartLocators:
+    """Locators for cart page"""
+    ITEM = (By.CLASS_NAME, "cart_item")
+    CHECKOUT_BTN = (By.ID, "checkout")
+
+
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from constants import ELEMENT_TIMEOUT
+
+class BasePage:
+    def __init__(self, driver):
+        self.driver = driver
+        self.wait = WebDriverWait(driver, ELEMENT_TIMEOUT)
+    
+    def find_element(self, locator):
+        """Wait for and return a single element"""
+        print(f"Looking for element: {locator}")
+        return self.wait.until(EC.presence_of_element_located(locator))
+    
+    def find_elements(self, locator):
+        """Wait for and return multiple elements"""
+        print(f"Looking for multiple elements: {locator}")
+        return self.wait.until(EC.presence_of_all_elements_located(locator))
+    
+    def click(self, locator):
+        """Click on an element"""
+        print(f"Clicking on: {locator}")
+        self.find_element(locator).click()
+
+
+from locators.product_locators import ProductLocators
+from pages.base_page import BasePage
+
+class ProductPage(BasePage):
+    def get_product_details(self, product_name):
+        """Extract product details from listing page"""
+        print(f"\nGetting details for product: {product_name}")
+        product_card = self.find_element(ProductLocators.product_card_by_name(product_name))
+        
+        details = {
+            'name': product_card.find_element(*ProductLocators.NAME).text,
+            'price': float(product_card.find_element(*ProductLocators.PRICE).text.replace('$', '')),
+            'desc': product_card.find_element(*ProductLocators.DESC).text,
+            'image': product_card.find_element(*ProductLocators.IMAGE).get_attribute('src')
+        }
+        print(f"Found product details: {details}")
+        return details
+    
+    def add_product_by_name(self, product_name):
+        """Add specific product to cart"""
+        print(f"\nAdding product to cart: {product_name}")
+        product_card = self.find_element(ProductLocators.product_card_by_name(product_name))
+        product_card.find_element(*ProductLocators.ADD_BUTTON).click()
+        print(f"Added {product_name} to cart")
+        return self.get_product_details(product_name)
+
+
+from locators.cart_locators import CartLocators
+from pages.base_page import BasePage
+
+class CartPage(BasePage):
+    def get_cart_items(self):
+        """Get all items in cart with details"""
+        print("\nGetting cart items...")
+        items = []
+        for item in self.find_elements(CartLocators.ITEM):
+            items.append({
+                'name': item.find_element(*ProductLocators.NAME).text,
+                'price': float(item.find_element(*ProductLocators.PRICE).text.replace('$', ''))
+            })
+        print(f"Found {len(items)} items in cart: {items}")
+        return items
+    
+    def proceed_to_checkout(self):
+        """Click checkout button"""
+        print("\nProceeding to checkout...")
+        self.click(CartLocators.CHECKOUT_BTN)
+
+PRODUCT_TEST_DATA = {
+    "Sauce Labs Backpack": {
+        "name": "Sauce Labs Backpack",
+        "price": 29.99,
+        "desc": "carry.allTheThings() with the sleek, streamlined Sly Pack",
+        "image": "sauce-backpack",
+        "tax": 2.40,
+        "total": 32.39
+    },
+    "Sauce Labs Bike Light": {
+        "name": "Sauce Labs Bike Light",
+        "price": 9.99,
+        "desc": "A red light isn't the desired state in testing but it sure helps when riding your bike at night",
+        "image": "bike-light",
+        "tax": 0.80,
+        "total": 10.79
+    }
+}
+
+
+class ProductVerifier:
+    @staticmethod
+    def verify_product_details(actual: dict, expected: dict, page_name: str):
+        """
+        Verify product details match expected values
+        Args:
+            actual (dict): Details from page {'name': str, 'price': float, ...}
+            expected (dict): Expected values from test data
+            page_name (str): Page being verified (for error messages)
+        """
+        print(f"\nVerifying product on {page_name} page...")
+        
+        # Required fields
+        assert actual['name'] == expected['name'], \
+            f"{page_name} name mismatch. Expected {expected['name']}, got {actual['name']}"
+        assert actual['price'] == expected['price'], \
+            f"{page_name} price mismatch. Expected {expected['price']}, got {actual['price']}"
+        
+        # Optional fields
+        if 'desc' in expected:
+            assert actual['desc'] == expected['desc'], \
+                f"{page_name} description mismatch"
+        
+        if 'image' in expected and 'image' in actual:
+            assert expected['image'] in actual['image'], \
+                f"{page_name} image mismatch. Expected {expected['image']} in {actual['image']}"
+        
+        print(f"All product details verified on {page_name} page!")
+
+
+import pytest
+from test_data.products import PRODUCT_TEST_DATA
+from utils.product_verifier import ProductVerifier
+
+@pytest.mark.smoke
+def test_backpack_workflow(driver, login, clean_cart):
+    """Smoke test for critical product (Backpack)"""
+    print("\n=== Starting Backpack Smoke Test ===")
+    
+    # Setup
+    product_page = ProductPage(driver)
+    cart_page = CartPage(driver)
+    expected = PRODUCT_TEST_DATA["Sauce Labs Backpack"]
+    
+    # 1. Verify Product Page
+    product_details = product_page.get_product_details(expected['name'])
+    ProductVerifier.verify_product_details(product_details, expected, "Product")
+    
+    # 2. Add to Cart
+    product_page.add_product_by_name(expected['name'])
+    
+    # 3. Verify Cart
+    cart_page.navigate()
+    cart_items = cart_page.get_cart_items()
+    ProductVerifier.verify_product_details(cart_items[0], expected, "Cart")
+    
+    print("=== Backpack Smoke Test Passed ===")
+
+
+import pytest
+from test_data.products import PRODUCT_TEST_DATA
+from utils.product_verifier import ProductVerifier
+
+@pytest.mark.parametrize("product_name", PRODUCT_TEST_DATA.keys(), 
+                         ids=lambda x: x.replace(" ", "_"))
+def test_all_products_flow(driver, login, clean_cart, product_name):
+    """Data-driven test for all products"""
+    print(f"\n=== Testing Product: {product_name} ===")
+    
+    # Setup
+    product_page = ProductPage(driver)
+    cart_page = CartPage(driver)
+    expected = PRODUCT_TEST_DATA[product_name]
+    
+    # 1. Verify Product Page
+    product_details = product_page.get_product_details(product_name)
+    ProductVerifier.verify_product_details(product_details, expected, "Product")
+    
+    # 2. Add to Cart
+    product_page.add_product_by_name(product_name)
+    
+    # 3. Verify Cart
+    cart_page.navigate()
+    cart_items = cart_page.get_cart_items()
+    ProductVerifier.verify_product_details(cart_items[0], expected, "Cart")
+    
+    print(f"=== {product_name} Test Passed ===")

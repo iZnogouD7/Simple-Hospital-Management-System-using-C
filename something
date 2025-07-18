@@ -1,0 +1,647 @@
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from selenium.common.exceptions import TimeoutException, NoSuchElementException
+
+class BasePage:
+    def __init__(self, driver):
+        self.driver = driver
+        self.wait = WebDriverWait(self.driver, 10)
+        
+    def find_element(self, locator):
+        try:
+            return self.wait.until(EC.presence_of_element_located(locator))
+        except TimeoutException:
+            raise Exception(f"Element {locator} not found")
+    
+    def find_elements(self, locator):
+        try:
+            return self.wait.until(EC.presence_of_all_elements_located(locator))
+        except TimeoutException:
+            raise Exception(f"Elements {locator} not found")
+    
+    def click_element(self, locator):
+        try:
+            self.wait.until(EC.element_to_be_clickable(locator)).click()
+        except TimeoutException:
+            raise Exception(f"Failed to click element {locator}")
+    
+    def type_in_element(self, locator, text):
+        try:
+            element = self.wait.until(EC.presence_of_element_located(locator))
+            element.clear()
+            element.send_keys(text)
+        except TimeoutException:
+            raise Exception(f"Failed to type into element {locator}")
+    
+    def get_text_from_element(self, locator):
+        try:
+            return self.wait.until(EC.visibility_of_element_located(locator)).text
+        except TimeoutException:
+            print(f"Couldn't get text from element {locator}")
+            return ""
+    
+    def get_attribute_from_element(self, locator, attribute):
+        try:
+            element = self.wait.until(EC.presence_of_element_located(locator))
+            return element.get_attribute(attribute)
+        except TimeoutException:
+            print(f"Couldn't get attribute from element {locator}")
+            return ""
+    
+    def get_count(self, locator):
+        try:
+            return len(self.find_elements(locator))
+        except:
+            return 0
+    
+    def is_displayed(self, locator):
+        try:
+            return self.find_element(locator).is_displayed()
+        except:
+            print(f"Element {locator} is not displayed")
+            return False
+    
+    def is_element_present(self, locator):
+        try:
+            self.driver.find_element(*locator)
+            return True
+        except NoSuchElementException:
+            return False
+    
+    def scroll_to_element(self, locator):
+        element = self.find_element(locator)
+        self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
+    
+    def get_current_url(self):
+        return self.driver.current_url
+    
+    def get_page_title(self):
+        return self.driver.title
+    
+    def switch_to_new_window(self, main_window):
+        for window in self.driver.window_handles:
+            if window != main_window:
+                self.driver.switch_to.window(window)
+                return window
+        raise AssertionError("No new windows found")
+    
+    def refresh_page(self):
+        self.driver.refresh()
+
+
+
+import time
+from Locators.alllocators import LoginPageLocators
+from Pages.BasePage import BasePage
+
+class LoginPage(BasePage):
+    def login(self, username, password):
+        self.type_in_element(LoginPageLocators.username_field, username)
+        self.type_in_element(LoginPageLocators.password_field, password)
+        self.click_element(LoginPageLocators.login_button)
+        print("Logged in successfully")
+        time.sleep(3)
+    
+    def get_error_message(self):
+        try:
+            return self.get_text_from_element(LoginPageLocators.error_field_path)
+        except:
+            print("Couldn't get the error message")
+            return ""
+    
+    def get_url(self):
+        return self.get_current_url()
+    
+    def get_title(self):
+        return self.get_page_title()
+    
+    def are_elements_displayed(self):
+        return (self.is_displayed(LoginPageLocators.username_field) and
+                self.is_displayed(LoginPageLocators.password_field) and
+                self.is_displayed(LoginPageLocators.login_button))
+    
+
+    
+    def is_login_button_enabled(self):
+        try:
+            element = self.find_element(LoginPageLocators.login_button)
+            return element.is_enabled()
+        except:
+            return False
+    
+    def get_username_placeholder(self):
+        return self.get_attribute_from_element(LoginPageLocators.username_field, "placeholder")
+    
+    def get_password_placeholder(self):
+        return self.get_attribute_from_element(LoginPageLocators.password_field, "placeholder")
+
+
+import React, { useState, useEffect } from "react";
+
+// TaskItem Component
+const TaskItem = ({ task, index, onToggle, onEdit, onDelete }) => {
+  const categoryClass = `category-${task.category}`;
+  const priorityClass = `priority-${task.priority}`;
+  
+  return (
+    <li className={`task-item ${task.completed ? "completed" : ""} ${priorityClass}`}>
+      <div className="task-header">
+        <div className="task-main">
+          <input
+            type="checkbox"
+            checked={task.completed}
+            onChange={() => onToggle(index)}
+          />
+          <strong>{task.text}</strong>
+        </div>
+        <div className="task-buttons">
+          <button className="edit-btn" onClick={() => onEdit(index)}>Edit</button>
+          <button className="delete-btn" onClick={() => onDelete(index)}>Delete</button>
+        </div>
+      </div>
+      <div className="task-details">
+        <span className={categoryClass}>📁 {task.category}</span> | 
+        🗓 Due: {task.dueDate || "N/A"} | 
+        ⏳ Priority: {task.priority}
+      </div>
+      {task.subtask && <div className="subtask">🔹 Subtask: {task.subtask}</div>}
+    </li>
+  );
+};
+
+// TaskList Component
+const TaskList = ({ tasks, onToggle, onEdit, onDelete }) => {
+  const uncompleted = tasks.filter(t => !t.completed);
+  const completed = tasks.filter(t => t.completed);
+  
+  return (
+    <div className="task-layout">
+      <div className="task-column">
+        <h2>📝 Uncompleted Tasks ({uncompleted.length})</h2>
+        <ul>
+          {uncompleted.map((task, index) => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              index={tasks.indexOf(task)}
+              onToggle={onToggle}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ))}
+        </ul>
+      </div>
+      <div className="task-column">
+        <h2>✅ Completed Tasks ({completed.length})</h2>
+        <ul>
+          {completed.map((task, index) => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              index={tasks.indexOf(task)}
+              onToggle={onToggle}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+// Main App Component
+const App = () => {
+  const [tasks, setTasks] = useState([]);
+  const [day, setDay] = useState("");
+  const [date, setDate] = useState("");
+  const [formData, setFormData] = useState({
+    text: "",
+    subtask: "",
+    dueDate: "",
+    priority: "Medium",
+    category: "General"
+  });
+  const [sortType, setSortType] = useState("newest");
+  const [editingIndex, setEditingIndex] = useState(null);
+
+  useEffect(() => {
+    // Set up day and date
+    const today = new Date();
+    const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(today);
+    const month = new Intl.DateTimeFormat("en-US", { month: "long" }).format(today);
+    const dayNum = today.getDate();
+    const year = today.getFullYear();
+    setDay(weekday);
+    setDate(`${month} ${dayNum}, ${year}`);
+  }, []);
+
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = e => {
+    e.preventDefault();
+    if (!formData.text.trim()) return alert("Please enter a task.");
+    
+    if (editingIndex !== null) {
+      // Update existing task
+      const updatedTasks = [...tasks];
+      updatedTasks[editingIndex] = {
+        ...updatedTasks[editingIndex],
+        ...formData,
+        updatedAt: new Date().toISOString()
+      };
+      setTasks(updatedTasks);
+      setEditingIndex(null);
+    } else {
+      // Add new task
+      const newTask = {
+        ...formData,
+        completed: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        id: Date.now()
+      };
+      setTasks([...tasks, newTask]);
+    }
+    
+    setFormData({ 
+      text: "", 
+      subtask: "", 
+      dueDate: "", 
+      priority: "Medium", 
+      category: "General" 
+    });
+  };
+
+  const handleToggle = index => {
+    const updatedTasks = [...tasks];
+    updatedTasks[index] = {
+      ...updatedTasks[index],
+      completed: !updatedTasks[index].completed,
+      updatedAt: new Date().toISOString()
+    };
+    setTasks(updatedTasks);
+  };
+
+  const handleEdit = index => {
+    const task = tasks[index];
+    setFormData({
+      text: task.text,
+      subtask: task.subtask,
+      dueDate: task.dueDate,
+      priority: task.priority,
+      category: task.category
+    });
+    setEditingIndex(index);
+  };
+
+  const handleDelete = index => {
+    if (window.confirm("Are you sure you want to delete this task?")) {
+      const updatedTasks = tasks.filter((_, i) => i !== index);
+      setTasks(updatedTasks);
+    }
+  };
+
+  // Sort tasks
+  const sortedTasks = [...tasks];
+  const priorityOrder = { High: 3, Medium: 2, Low: 1 };
+
+  if (sortType === "newest") {
+    sortedTasks.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
+  } else if (sortType === "oldest") {
+    sortedTasks.sort((a, b) => new Date(a.updatedAt) - new Date(b.updatedAt));
+  } else if (sortType === "priorityHighLow") {
+    sortedTasks.sort((a, b) => priorityOrder[b.priority] - priorityOrder[a.priority]);
+  } else if (sortType === "priorityLowHigh") {
+    sortedTasks.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
+  }
+
+  return (
+    <div style={{
+      fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif",
+      backgroundColor: "#f5f5f5",
+      margin: 0,
+      padding: 0,
+      minHeight: "100vh"
+    }}>
+      <style jsx>{`
+        .container {
+          max-width: 1280px;
+          margin-left: 100px;
+          padding: 50px;
+        }
+        
+        h1 {
+          color: #333;
+          text-align: center;
+          margin-bottom: 10px;
+        }
+        
+        p {
+          text-align: center;
+          color: #666;
+          margin-bottom: 30px;
+        }
+        
+        .form-section {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 30px;
+          background: #fff;
+          padding: 20px;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          transition: box-shadow 0.3s ease;
+        }
+        
+        .form-section:hover {
+          box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .form-section input,
+        .form-section select,
+        .form-section button {
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 16px;
+          transition: all 0.3s ease;
+        }
+        
+        .form-section input:focus,
+        .form-section select:focus {
+          outline: none;
+          border-color: #4CAF50;
+          box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+        }
+        
+        .form-section input[type="text"],
+        .form-section input[type="date"] {
+          flex: 1;
+          min-width: 200px;
+        }
+        
+        .form-section button {
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          cursor: pointer;
+          font-weight: bold;
+        }
+        
+        .form-section button:hover {
+          background-color: #45a049;
+          transform: translateY(-2px);
+        }
+        
+        .task-layout {
+          display: flex;
+          gap: 20px;
+        }
+        
+        .task-column {
+          flex: 1;
+          background: #fff;
+          padding: 20px;
+          border-radius: 8px;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          transition: box-shadow 0.3s ease;
+        }
+        
+        .task-column:hover {
+          box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        
+        .task-column h2 {
+          border-bottom: 2px solid #eee;
+          padding-bottom: 10px;
+          color: #444;
+          margin-bottom: 15px;
+        }
+        
+        ul {
+          list-style: none;
+          padding: 0;
+        }
+        
+        .task-item {
+          display: flex;
+          flex-direction: column;
+          padding: 15px;
+          margin-bottom: 10px;
+          border-radius: 4px;
+          background-color: #f9f9f9;
+          transition: all 0.3s ease;
+          transform: translateX(0);
+          opacity: 1;
+        }
+        
+        .task-item:hover {
+          background-color: #f0f0f0;
+          transform: translateX(5px);
+        }
+        
+        .task-item.completed {
+          opacity: 0.7;
+          background-color: #e8f5e8;
+        }
+        
+        .task-item.completed .task-main strong {
+          text-decoration: line-through;
+          color: #888;
+        }
+        
+        .priority-High {
+          border-left: 4px solid #f44336;
+        }
+        
+        .priority-Medium {
+          border-left: 4px solid #ff9800;
+        }
+        
+        .priority-Low {
+          border-left: 4px solid #4CAF50;
+        }
+        
+        .task-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 8px;
+        }
+        
+        .task-main {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        
+        .task-buttons {
+          display: flex;
+          gap: 5px;
+        }
+        
+        .edit-btn,
+        .delete-btn {
+          padding: 5px 10px;
+          border: none;
+          border-radius: 3px;
+          cursor: pointer;
+          font-size: 12px;
+          transition: all 0.3s ease;
+        }
+        
+        .edit-btn {
+          background-color: #2196F3;
+          color: white;
+        }
+        
+        .edit-btn:hover {
+          background-color: #1976D2;
+          transform: scale(1.05);
+        }
+        
+        .delete-btn {
+          background-color: #f44336;
+          color: white;
+        }
+        
+        .delete-btn:hover {
+          background-color: #d32f2f;
+          transform: scale(1.05);
+        }
+        
+        .task-details {
+          font-size: 0.8em;
+          color: #666;
+          margin-top: 5px;
+        }
+        
+        .subtask {
+          font-size: 0.9em;
+          color: #777;
+          margin-top: 5px;
+          font-style: italic;
+        }
+        
+        .category-Work {
+          color: #2196F3;
+          font-weight: bold;
+        }
+        
+        .category-Personal {
+          color: #9C27B0;
+          font-weight: bold;
+        }
+        
+        .category-General {
+          color: #607D8B;
+          font-weight: bold;
+        }
+        
+        input[type="checkbox"] {
+          transform: scale(1.3);
+          margin-right: 10px;
+          cursor: pointer;
+          transition: transform 0.2s ease;
+        }
+        
+        input[type="checkbox"]:hover {
+          transform: scale(1.4);
+        }
+        
+        @media (max-width: 768px) {
+          .container {
+            margin-left: 20px;
+            padding: 20px;
+          }
+          
+          .task-layout {
+            flex-direction: column;
+          }
+          
+          .form-section {
+            flex-direction: column;
+          }
+          
+          .task-item:hover {
+            transform: translateX(0);
+          }
+        }
+      `}</style>
+      
+      <div className="container">
+        <h1>Today's To-Do List</h1>
+        <p>
+          <strong>{day}</strong> — {date}
+        </p>
+
+        <form className="form-section" onSubmit={handleSubmit}>
+          <input 
+            name="text" 
+            value={formData.text} 
+            onChange={handleChange} 
+            placeholder="Task" 
+            required
+          />
+          <input 
+            name="subtask" 
+            value={formData.subtask} 
+            onChange={handleChange} 
+            placeholder="Subtask (optional)" 
+          />
+          <input 
+            type="date" 
+            name="dueDate" 
+            value={formData.dueDate} 
+            onChange={handleChange} 
+          />
+          <select 
+            name="category" 
+            value={formData.category} 
+            onChange={handleChange}
+          >
+            <option value="General">General</option>
+            <option value="Work">Work</option>
+            <option value="Personal">Personal</option>
+          </select>
+          <select 
+            name="priority" 
+            value={formData.priority} 
+            onChange={handleChange}
+          >
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+          </select>
+          <button type="submit">
+            {editingIndex !== null ? "Update Task" : "Add Task"}
+          </button>
+          <select 
+            value={sortType} 
+            onChange={e => setSortType(e.target.value)}
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="priorityHighLow">Priority High → Low</option>
+            <option value="priorityLowHigh">Priority Low → High</option>
+          </select>
+        </form>
+
+        <TaskList 
+          tasks={sortedTasks}
+          onToggle={handleToggle}
+          onEdit={handleEdit}
+          onDelete={handleDelete}
+        />
+      </div>
+    </div>
+  );
+};
+
+export default App;

@@ -1,3 +1,90 @@
+@pytest.fixture()
+def setup_cart_page(driver):
+    """Navigate to cart page with proper setup"""
+    # Login
+    login_page = LoginPage(driver)
+    login_page.login(LoginPageLocators.valid_username, LoginPageLocators.valid_password)
+    
+    # Add item to cart (so cart has content)
+    product_page = ProductPage(driver)
+    product_page.add_single_item(ProductPageLocators.add_back_pack_path)
+    
+    # Navigate to cart page
+    product_page.click_on_cart_button()
+    
+    # Return cart page and other page objects
+    cart_page = CartPage(driver)
+    other_page = OtherPage(driver)
+    return cart_page, other_page
+
+@pytest.mark.cart_menu_test
+def test_cart_page_menu_comprehensive(setup_cart_page):
+    """Comprehensive test of all menu functionality from cart page"""
+    cart_page, menu = setup_cart_page
+    
+    # 1. Verify we're on cart page
+    assert "cart.html" in menu.get_current_url(), f"Not on cart page. Current URL: {menu.get_current_url()}"
+    
+    # 2. Test menu button visibility
+    assert menu.is_menu_button_displayed(), "Menu button not visible on cart page"
+    
+    # 3. Test menu opens
+    menu.click_menu_button()
+    assert menu.is_menu_sidebar_displayed(), "Menu sidebar not displayed after clicking menu button"
+    
+    # 4. Test All Items navigation
+    menu.go_to_all_item()
+    assert "inventory" in menu.get_current_url(), f"All Items didn't navigate to inventory. Got: {menu.get_current_url()}"
+    
+    # Return to cart page for next test
+    menu.click_on_cart_button()
+    assert "cart.html" in menu.get_current_url(), "Failed to return to cart page"
+    
+    # 5. Test About navigation
+    menu.click_menu_button()
+    menu.go_to_about()
+    assert "saucelabs.com" in menu.get_current_url(), f"About didn't navigate to saucelabs.com. Got: {menu.get_current_url()}"
+    
+    # Return to cart page for next test
+    driver.back()  # or navigate back to cart
+    menu.click_on_cart_button()
+    assert "cart.html" in menu.get_current_url(), "Failed to return to cart page after About"
+    
+    # 6. Test Reset App State
+    initial_cart_count = menu.get_cart_count()
+    assert initial_cart_count > 0, "Cart should have items before reset test"
+    
+    menu.click_menu_button()
+    menu.reset_app_state()
+    menu.click_menu_cancel()
+    
+    final_cart_count = menu.get_cart_count()
+    assert final_cart_count == 0, f"Cart not reset. Expected 0, got {final_cart_count}"
+    
+    # 7. Test menu cancel functionality
+    menu.click_menu_button()
+    assert menu.is_menu_sidebar_displayed(), "Menu should be displayed before cancel test"
+    
+    menu.click_menu_cancel()
+    assert not menu.is_menu_sidebar_displayed(), "Menu should be hidden after cancel"
+    
+    # 8. Test logout (do this last since it ends the session)
+    menu.click_menu_button()
+    menu.logout()
+    assert menu.get_current_url() == LoginPageLocators.loginpageUrl, \
+        f"Should be on login page after logout. Expected: {LoginPageLocators.loginpageUrl}, Got: {menu.get_current_url()}"
+
+
+@pytest.mark.smoke
+@pytest.mark.priority_high
+@pytest.mark.order(1)
+
+@pytest.mark.menu_functionality
+@pytest.mark.login_functionality
+@pytest.mark.cart_functionality
+
+
+
 ├── conftest.py
 ├── constants.py
 ├── locators/

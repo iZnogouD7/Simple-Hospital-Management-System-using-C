@@ -1,3 +1,236 @@
+import pytest
+import csv
+import os
+from Locators.alllocators import LoginPageLocators, ProductPageLocators
+from Pages.LoginPage import LoginPage
+from Pages.ProductPage import ProductPage
+from Pages.CartPage import CartPage
+
+
+def load_test_data_from_csv():
+    """Load test data from CSV file"""
+    csv_file = "test_items.csv"
+    test_data = []
+    
+    if os.path.exists(csv_file):
+        with open(csv_file, 'r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                test_data.append((
+                    row['item_name'],
+                    getattr(ProductPageLocators, row['add_button_locator']),
+                    float(row['expected_price']),
+                    row['expected_desc_contains']
+                ))
+    else:
+        # Fallback data if CSV doesn't exist
+        test_data = [
+            ("Sauce Labs Backpack", ProductPageLocators.add_back_pack_path, 29.99, "carry.allTheThings()"),
+            ("Sauce Labs Bike Light", ProductPageLocators.add_bike_light_path, 9.99, "illuminate"),
+            ("Sauce Labs Fleece Jacket", ProductPageLocators.add_Jacket_path, 49.99, "fleece"),
+        ]
+    
+    return test_data
+
+
+@pytest.fixture()
+def login_to_product_page(driver):
+    """Login and navigate to product page"""
+    login_page = LoginPage(driver)
+    login_page.login(LoginPageLocators.valid_username, LoginPageLocators.valid_password)
+    return ProductPage(driver)
+
+
+@pytest.mark.parametrize("item_name,add_locator,expected_price,expected_desc", load_test_data_from_csv())
+def test_item_title_navigation(driver, item_name, add_locator, expected_price, expected_desc):
+    """Test clicking item title to navigate to detail page for all items"""
+    # Login
+    login_page = LoginPage(driver)
+    login_page.login(LoginPageLocators.valid_username, LoginPageLocators.valid_password)
+    product_page = ProductPage(driver)
+    
+    # Get item details from inventory and click title
+    inventory_details = product_page.get_item_details_from_inventory(item_name)
+    product_page.click_item_by_name(item_name)
+    
+    # Verify navigation and details
+    assert product_page.is_on_item_detail_page(), f"Should be on detail page for {item_name}"
+    detail_details = product_page.get_item_details_from_detail_page()
+    assert product_page.verify_item_details_match(inventory_details, detail_details), \
+        f"Details should match for {item_name}"
+
+
+@pytest.mark.parametrize("item_name,add_locator,expected_price,expected_desc", load_test_data_from_csv())
+def test_item_image_navigation(driver, item_name, add_locator, expected_price, expected_desc):
+    """Test clicking item image to navigate to detail page for all items"""
+    # Login
+    login_page = LoginPage(driver)
+    login_page.login(LoginPageLocators.valid_username, LoginPageLocators.valid_password)
+    product_page = ProductPage(driver)
+    
+    # Get details and click image
+    inventory_details = product_page.get_item_details_from_inventory(item_name)
+    product_page.click_item_image_by_name(item_name)
+    
+    # Verify navigation and details
+    assert product_page.is_on_item_detail_page(), f"Should be on detail page for {item_name}"
+    detail_details = product_page.get_item_details_from_detail_page()
+    assert product_page.verify_item_details_match(inventory_details, detail_details), \
+        f"Details should match for {item_name}"
+
+
+@pytest.mark.parametrize("item_name,add_locator,expected_price,expected_desc", load_test_data_from_csv())
+def test_add_remove_from_detail_page(driver, item_name, add_locator, expected_price, expected_desc):
+    """Test adding and removing items from detail page for all items"""
+    # Login and navigate to detail page
+    login_page = LoginPage(driver)
+    login_page.login(LoginPageLocators.valid_username, LoginPageLocators.valid_password)
+    product_page = ProductPage(driver)
+    
+    product_page.click_item_by_name(item_name)
+    
+    # Test add/remove functionality
+    initial_cart_count = product_page.get_cart_count()
+    
+    # Add item
+    product_page.add_item_from_detail_page()
+    new_cart_count = product_page.get_cart_count()
+    assert new_cart_count == initial_cart_count + 1, \
+        f"Cart count should increase by 1 for {item_name}"
+    
+    # Remove item
+    product_page.remove_item_from_detail_page()
+    final_cart_count = product_page.get_cart_count()
+    assert final_cart_count == initial_cart_count, \
+        f"Cart count should return to initial value for {item_name}"
+
+
+@pytest.mark.parametrize("item_name,add_locator,expected_price,expected_desc", load_test_data_from_csv())
+def test_item_verification_in_cart(driver, item_name, add_locator, expected_price, expected_desc):
+    """Test item details verification in cart for all items"""
+    # Login and add item
+    login_page = LoginPage(driver)
+    login_page.login(LoginPageLocators.valid_username, LoginPageLocators.valid_password)
+    product_page = ProductPage(driver)
+    
+    product_page.add_single_item(add_locator)
+    product_page.click_on_cart_button()
+    
+    # Verify item in cart
+    cart_page = CartPage(driver)
+    cart_items = cart_page.get_cart_items()
+    
+    assert len(cart_items) >= 1, f"Cart should have at least 1 item after adding {item_name}"
+    
+    # Find the added item in cart
+    added_item = None
+    for item in cart_items:
+        if item['name'] == item_name:
+            added_item = item
+            break
+    
+    assert added_item is not None, f"Item {item_name} should be in cart"
+    assert added_item['price'] == expected_price, \
+        f"Expected price {expected_price} for {item_name}, got {added_item['price']}"
+    assert expected_desc in added_item['desc'], \
+        f"Expected description to contain '{expected_desc}' for {item_name}"
+
+
+@pytest.mark.parametrize("item_name,add_locator,expected_price,expected_desc", load_test_data_from_csv())
+def test_cart_item_navigation(driver, item_name, add_locator, expected_price, expected_desc):
+    """Test navigation from cart item to detail page for all items"""
+    # Login, add item, and go to cart
+    login_page = LoginPage(driver)
+    login_page.login(LoginPageLocators.valid_username, LoginPageLocators.valid_password)
+    product_page = ProductPage(driver)
+    
+    product_page.add_single_item(add_locator)
+    product_page.click_on_cart_button()
+    
+    # Navigate from cart to detail page
+    cart_page = CartPage(driver)
+    cart_page.click_item_title_in_cart(item_name)
+    
+    # Verify navigation
+    assert product_page.is_on_item_detail_page(), \
+        f"Should navigate to detail page from cart for {item_name}"
+    
+    # Test back navigation
+    product_page.click_back_to_product()
+    assert "inventory.html" in product_page.get_current_url(), \
+        f"Should navigate back to inventory page for {item_name}"
+
+
+def test_comprehensive_multi_item_workflow(driver):
+    """Test workflow with multiple items from CSV data"""
+    # Login
+    login_page = LoginPage(driver)
+    login_page.login(LoginPageLocators.valid_username, LoginPageLocators.valid_password)
+    product_page = ProductPage(driver)
+    
+    # Load test data and add first 3 items
+    test_data = load_test_data_from_csv()[:3]  # Limit to first 3 items for comprehensive test
+    
+    # Add multiple items
+    for item_name, add_locator, expected_price, expected_desc in test_data:
+        product_page.add_single_item(add_locator)
+    
+    # Verify cart
+    product_page.click_on_cart_button()
+    cart_page = CartPage(driver)
+    cart_items = cart_page.get_cart_items()
+    
+    assert len(cart_items) == len(test_data), \
+        f"Cart should have {len(test_data)} items"
+    
+    # Verify each item in cart
+    cart_item_names = [item['name'] for item in cart_items]
+    for item_name, _, expected_price, _ in test_data:
+        assert item_name in cart_item_names, f"{item_name} should be in cart"
+    
+    # Remove all items
+    cart_page.remove_all_items_from_cart()
+    assert cart_page.verify_cart_is_empty(), "Cart should be empty after removing all items"
+
+
+def test_back_to_products_navigation(login_to_product_page):
+    """Test back to products button functionality"""
+    product_page = login_to_product_page
+    
+    # Use first item from test data
+    test_data = load_test_data_from_csv()
+    item_name = test_data[0][0]
+    
+    # Navigate to detail page and back
+    product_page.click_item_by_name(item_name)
+    assert product_page.is_on_item_detail_page(), "Should be on item detail page"
+    
+    product_page.click_back_to_product()
+    assert "inventory.html" in product_page.get_current_url(), \
+        "Should be back on inventory page"
+
+
+
+
+item_name,add_button_locator,expected_price,expected_desc_contains
+Sauce Labs Backpack,add_back_pack_path,29.99,carry.allTheThings()
+Sauce Labs Bike Light,add_bike_light_path,9.99,illuminate
+Sauce Labs Bolt T-Shirt,add_bolt_tshirt_path,15.99,bolt
+Sauce Labs Fleece Jacket,add_Jacket_path,49.99,fleece
+Sauce Labs Onesie,add_onesie_path,7.99,onesie
+Test.allTheThings() T-Shirt (Red),add_red_tshirt_path,15.99,allTheThings
+
+
+
+
+
+
+
+
+
+
+
+
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By

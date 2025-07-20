@@ -1,0 +1,671 @@
+  Assignment
+Problem Statement:
+
+Design an Electronic Health Records System to manage patient records, clinical encounters, test results, prescriptions, allergies, and vaccination history. Focus on data security, integrity, and quick access to longitudinal patient data.
+
+📝 Schema Design
+
+Main Tables:
+• Patients (Patient_ID, Name, DOB, Gender, Contact, Address, Blood_Type, Insurance_ID)
+• Visits (Visit_ID, Patient_ID, Visit_Date, Doctor_ID, Reason, Notes)
+• Lab_Results (Result_ID, Visit_ID, Test_Name, Result_Value, Normal_Range, Test_Date)
+• Prescriptions (Prescription_ID, Visit_ID, Medicine_ID, Dosage, Frequency, Start_Date, End_Date)
+• Allergies (Allergy_ID, Patient_ID, Allergen, Severity, Notes)
+• Vaccinations (Vaccine_ID, Patient_ID, Vaccine_Name, Dose_Number, Administered_Date)
+
+Reference Tables:
+• Insurance_Providers (Insurance_ID, Name, Coverage)
+• Medications (Medicine_ID, Name, Type, Manufacturer)
+
+✅ SQL Queries:
+
+• Patients with abnormal lab results in the last 3 months.
+• List of medications prescribed by each doctor.
+• Patients with known allergies to prescribed medications.
+• Vaccination history for patients under age 12.
+• Patients missing required vaccinations.
+• Lab test trends (e.g., increasing cholesterol over time).
+
+✅ PL/SQL Logic:
+
+• Procedure to add a lab result with validation.
+• Trigger to prevent duplicate allergy records.
+• Function to retrieve patient summary (diagnoses, meds, labs).
+• Exception handling for invalid dosage or test inputs.
+
+✅ Performance:
+
+• Index on Patient_ID, Visit_Date, Test_Name
+• Partition Lab_Results by year
+• Materialized view for patient history snapshot
+
+Expected Outcome:
+✔ Well-designed relational database schema with normalized tables.
+✔ Efficient SQL queries covering real-world e-commerce scenarios.
+✔ PL/SQL procedures, triggers, and exception handling for business logic implementation.
+✔ Performance optimization techniques applied for improved query execution.
+✔ Clean, well-documented SQL scripts.
+📅 Submission Guidelines:
+📌 Submit a SQL script file (.sql) containing:
+Table creation scripts.
+Data insertion scripts.
+SQL queries with their expected outputs.
+📌 Submit a PL/SQL script file (.sql) containing:
+Procedures, functions, and triggers.
+📌 Submit a Performance Report (PDF/Word) explaining:
+Query optimization techniques used.
+Indexing and partitioning strategies.
+Any performance improvements applied.
+📌 Presentation
+🎯 Evaluation Criteria:
+Category
+Weightage
+Database Design & Normalization
+20%
+Correctness of SQL Queries
+25%
+PL/SQL Implementation (Procedures, Triggers, Exception Handling)
+30%
+Performance Optimization Techniques
+15%
+Code Readability & Documentation
+10%
+
+
+
+
+BEGIN
+  -- 1. Hospitals
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Hospitals (
+      Hospital_ID     NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY ,
+      Name            VARCHAR2(100) NOT NULL,
+      Address         VARCHAR2(150),
+      Contact         VARCHAR2(20)
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 2. Departments
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Departments (
+      Department_ID   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Name            VARCHAR2(100) NOT NULL,
+      Hospital_ID     NUMBER NOT NULL,
+      FOREIGN KEY (Hospital_ID) REFERENCES Hospitals(Hospital_ID) ON DELETE CASCADE
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 3. Doctors
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Doctors (
+      Doctor_ID        NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Name             VARCHAR2(100) NOT NULL,
+      Specialization   VARCHAR2(100),
+      Contact          VARCHAR2(20),
+      Email            VARCHAR2(100),
+      Experience_Years NUMBER CHECK (Experience_Years >= 0),
+      Availability     VARCHAR2(50),
+      Department_ID    NUMBER NOT NULL,
+      FOREIGN KEY (Department_ID) REFERENCES Departments(Department_ID) ON DELETE SET NULL
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 4. Insurance Providers
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Insurance_Providers (
+      Insurance_ID NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Name         VARCHAR2(100) NOT NULL,
+      Coverage     VARCHAR2(200) NOT NULL
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 5. Patients
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Patients (
+      Patient_ID   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Name         VARCHAR2(100) NOT NULL,
+      DOB          DATE NOT NULL,
+      Gender       VARCHAR2(10) CHECK (Gender IN (''Male'', ''Female'', ''Other'')),
+      Contact      VARCHAR2(20),
+      Address      VARCHAR2(200),
+      Blood_Type   VARCHAR2(5),
+      Insurance_ID NUMBER,
+      FOREIGN KEY (Insurance_ID) REFERENCES Insurance_Providers(Insurance_ID) ON DELETE SET NULL
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 6. Visits
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Visits (
+      Visit_ID   NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Patient_ID NUMBER NOT NULL,
+      Visit_Date DATE NOT NULL,
+      Doctor_ID  NUMBER NOT NULL,
+      Reason     VARCHAR2(200),
+      Notes      CLOB,
+      FOREIGN KEY (Patient_ID) REFERENCES Patients(Patient_ID) ON DELETE SET NULL,
+      FOREIGN KEY (Doctor_ID) REFERENCES Doctors(Doctor_ID) ON DELETE SET NULL
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 7. Medications
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Medications (
+      Medicine_ID  NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Name         VARCHAR2(100) NOT NULL,
+      Type         VARCHAR2(50),
+      Manufacturer VARCHAR2(100)
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 8. Prescriptions
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Prescriptions (
+      Prescription_ID NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Visit_ID        NUMBER NOT NULL,
+      Medicine_ID     NUMBER NOT NULL,
+      Dosage          VARCHAR2(50) NOT NULL,
+      Frequency       VARCHAR2(50),
+      Start_Date      DATE,
+      End_Date        DATE,
+      FOREIGN KEY (Visit_ID) REFERENCES Visits(Visit_ID) ON DELETE CASCADE,
+      FOREIGN KEY (Medicine_ID) REFERENCES Medications(Medicine_ID)
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 9. Lab_Results (partitioned)
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Lab_Results (
+      Result_ID     NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Visit_ID      NUMBER NOT NULL,
+      Test_Name     VARCHAR2(100) NOT NULL,
+      Result_Value  NUMBER,
+      Normal_Range  VARCHAR2(50),
+      Test_Date     DATE NOT NULL,
+      FOREIGN KEY (Visit_ID) REFERENCES Visits(Visit_ID) ON DELETE CASCADE
+    )
+    PARTITION BY RANGE (Test_Date) (
+      PARTITION p2022 VALUES LESS THAN (TO_DATE(''2023-01-01'',''YYYY-MM-DD'')),
+      PARTITION p2023 VALUES LESS THAN (TO_DATE(''2024-01-01'',''YYYY-MM-DD'')),
+      PARTITION p2024 VALUES LESS THAN (TO_DATE(''2025-01-01'',''YYYY-MM-DD'')),
+      PARTITION pmax VALUES LESS THAN (MAXVALUE)
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 10. Allergies
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Allergies (
+      Allergy_ID  NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Patient_ID  NUMBER NOT NULL,
+      Allergen    VARCHAR2(100) NOT NULL,
+      Severity    VARCHAR2(20) CHECK (Severity IN (''Mild'', ''Moderate'', ''Severe'')),
+      Notes       VARCHAR2(200),
+      FOREIGN KEY (Patient_ID) REFERENCES Patients(Patient_ID) ON DELETE CASCADE
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+ 
+BEGIN
+  -- 11. Vaccinations
+  EXECUTE IMMEDIATE '
+    CREATE TABLE Vaccinations (
+      Vaccine_ID       NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+      Patient_ID       NUMBER NOT NULL,
+      Vaccine_Name     VARCHAR2(100) NOT NULL,
+      Dose_Number      NUMBER CHECK (Dose_Number >= 1),
+      Administered_Date DATE NOT NULL,
+      FOREIGN KEY (Patient_ID) REFERENCES Patients(Patient_ID) ON DELETE CASCADE
+    )';
+EXCEPTION WHEN OTHERS THEN
+  IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
+END;
+/
+
+
+
+
+
+CREATE MATERIALIZED VIEW Patient_History_Snapshot AS
+SELECT
+    p.Patient_ID,
+    p.Name,
+    p.DOB,
+    p.Gender,
+    p.Blood_Type,
+    ip.Name AS Insurance_Provider,
+    p.Contact,
+    p.Address,
+ 
+    -- Derived insights
+    COUNT(DISTINCT v.Visit_ID) AS Total_Visits,
+    MAX(v.Visit_Date) AS Last_Visit_Date,
+    (SELECT Doctor_ID FROM Visits v2 
+     WHERE v2.Patient_ID = p.Patient_ID 
+     ORDER BY v2.Visit_Date DESC 
+     LIMIT 1) AS Primary_Doctor_Last_Visit,
+ 
+    -- Age
+    DATE_PART('year', AGE(p.DOB)) AS Age,
+ 
+    -- Allergies summary
+    STRING_AGG(DISTINCT a.Allergen || ' [' || a.Severity || ']', ', ') AS Known_Allergies,
+ 
+    -- Vaccination count
+    COUNT(DISTINCT va.Vaccine_Name) AS Vaccination_Count,
+ 
+    -- Recent lab results summary (latest 3 tests)
+    STRING_AGG(DISTINCT lr.Test_Name || ': ' || lr.Result_Value || ' (' || lr.Test_Date || ')', '; ') 
+        FILTER (WHERE lr.Test_Date >= CURRENT_DATE - INTERVAL '180 days') AS Recent_Lab_Results,
+ 
+    -- Current medications
+    STRING_AGG(DISTINCT m.Name || ' (' || pr.Dosage || ')', ', ') 
+        FILTER (WHERE CURRENT_DATE BETWEEN pr.Start_Date AND pr.End_Date) AS Current_Medications,
+ 
+    -- Chronic medication flag: meds > 90 days
+    CASE 
+        WHEN EXISTS (
+            SELECT 1 FROM Prescriptions pr2
+            WHERE pr2.Visit_ID IN (
+                SELECT Visit_ID FROM Visits WHERE Patient_ID = p.Patient_ID
+            ) AND pr2.End_Date - pr2.Start_Date > 90
+        )
+        THEN TRUE ELSE FALSE
+    END AS Chronic_Medication_Flag,
+ 
+    -- Last prescription
+    (SELECT m2.Name 
+     FROM Prescriptions pr2 
+     JOIN Medications m2 ON pr2.Medicine_ID = m2.Medicine_ID 
+     JOIN Visits v2 ON pr2.Visit_ID = v2.Visit_ID
+     WHERE v2.Patient_ID = p.Patient_ID
+     ORDER BY pr2.Start_Date DESC 
+     LIMIT 1) AS Last_Prescription
+ 
+FROM Patients p
+LEFT JOIN Insurance_Providers ip ON p.Insurance_ID = ip.Insurance_ID
+LEFT JOIN Visits v ON p.Patient_ID = v.Patient_ID
+LEFT JOIN Allergies a ON p.Patient_ID = a.Patient_ID
+LEFT JOIN Vaccinations va ON p.Patient_ID = va.Patient_ID
+LEFT JOIN Lab_Results lr ON v.Visit_ID = lr.Visit_ID
+LEFT JOIN Prescriptions pr ON v.Visit_ID = pr.Visit_ID
+LEFT JOIN Medications m ON pr.Medicine_ID = m.Medicine_ID
+ 
+GROUP BY p.Patient_ID, p.Name, p.DOB, p.Gender, p.Blood_Type, ip.Name, p.Contact, p.Address;
+
+
+
+-- Procedure to add lab results with validation
+CREATE OR REPLACE PROCEDURE Add_Lab_Result (
+    p_Visit_ID NUMBER,
+    p_Test_Name VARCHAR2,
+    p_Result_Value NUMBER,
+    p_Normal_Range VARCHAR2,
+    p_Test_Date DATE
+)
+IS
+    v_visit_exists NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO v_visit_exists FROM Visits WHERE Visit_ID = p_Visit_ID;
+    
+    IF v_visit_exists = 0 THEN
+        RAISE_APPLICATION_ERROR(-20001, 'Visit ID does not exist');
+    END IF;
+
+    INSERT INTO Lab_Results (Result_ID, Visit_ID, Test_Name, Result_Value, Normal_Range, Test_Date)
+    VALUES (Lab_Result_SEQ.NEXTVAL, p_Visit_ID, p_Test_Name, p_Result_Value, p_Normal_Range, p_Test_Date);
+    
+    COMMIT;
+END;
+/
+
+-- Trigger to prevent duplicate allergy records
+CREATE OR REPLACE TRIGGER prevent_duplicate_allergy
+BEFORE INSERT ON Allergies
+FOR EACH ROW
+DECLARE
+    v_exists NUMBER;
+BEGIN
+    SELECT COUNT(*) INTO v_exists
+    FROM Allergies
+    WHERE Patient_ID = :NEW.Patient_ID AND LOWER(Allergen) = LOWER(:NEW.Allergen);
+    
+    IF v_exists > 0 THEN
+        RAISE_APPLICATION_ERROR(-20002, 'Duplicate allergy for this patient');
+    END IF;
+END;
+/
+
+
+
+
+-- Inserts in patients table
+INSERT INTO Patients (Patient_ID, Name, DOB, Gender, Contact, Address, Blood_Type, Insurance_ID) 
+VALUES (1, 'Sita Sharma', TO_DATE('2012-04-12', 'YYYY-MM-DD'), 'Female', '9812345678', 'Kathmandu', 'A+', 1);
+
+INSERT INTO Patients (Patient_ID, Name, DOB, Gender, Contact, Address, Blood_Type, Insurance_ID) 
+VALUES (2, 'Ram Thapa', TO_DATE('2010-08-05', 'YYYY-MM-DD'), 'Male', '9807654321', 'Pokhara', 'B+', 2);
+
+INSERT INTO Patients (Patient_ID, Name, DOB, Gender, Contact, Address, Blood_Type, Insurance_ID) 
+VALUES (3, 'Bina Tamang', TO_DATE('2011-11-30', 'YYYY-MM-DD'), 'Female', '9841122334', 'Biratnagar', 'O+', 3);
+
+INSERT INTO Patients (Patient_ID, Name, DOB, Gender, Contact, Address, Blood_Type, Insurance_ID) 
+VALUES (4, 'Kiran Rai', TO_DATE('2013-01-19', 'YYYY-MM-DD'), 'Other', '9867894561', 'Chitwan', 'AB-', 1);
+
+INSERT INTO Patients (Patient_ID, Name, DOB, Gender, Contact, Address, Blood_Type, Insurance_ID) 
+VALUES (5, 'Suman Gurung', TO_DATE('2014-06-10', 'YYYY-MM-DD'), 'Male', '9823456712', 'Butwal', 'O-', 4);
+
+-- Inserts in Insurance_Providers table
+INSERT INTO Insurance_Providers (Insurance_ID, Name, Coverage) 
+VALUES (1, 'Nepal Life Insurance', 'Basic');
+
+INSERT INTO Insurance_Providers (Insurance_ID, Name, Coverage) 
+VALUES (2, 'IME General Insurance', 'Comprehensive');
+
+INSERT INTO Insurance_Providers (Insurance_ID, Name, Coverage) 
+VALUES (3, 'Himalayan Everest Insurance', 'Premium');
+
+INSERT INTO Insurance_Providers (Insurance_ID, Name, Coverage) 
+VALUES (4, 'Shikhar Insurance', 'Basic');
+
+INSERT INTO Insurance_Providers (Insurance_ID, Name, Coverage) 
+VALUES (5, 'Sagarmatha Insurance', 'Premium');
+
+-- Inserts in Medications table
+INSERT INTO Medications (Medicine_ID, Name, Type, Manufacturer) 
+VALUES (1, 'Paracetamol', 'Antipyretic', 'Deurali-Janta');
+
+INSERT INTO Medications (Medicine_ID, Name, Type, Manufacturer) 
+VALUES (2, 'Amoxicillin', 'Antibiotic', 'Asian Pharmaceuticals');
+
+INSERT INTO Medications (Medicine_ID, Name, Type, Manufacturer) 
+VALUES (3, 'Ciprofloxacin', 'Antibiotic', 'Omnica Labs');
+
+INSERT INTO Medications (Medicine_ID, Name, Type, Manufacturer) 
+VALUES (4, 'Cetirizine', 'Antihistamine', 'Nepal Pharma');
+
+INSERT INTO Medications (Medicine_ID, Name, Type, Manufacturer) 
+VALUES (5, 'Ibuprofen', 'Analgesic', 'Chemidrug Industries');
+
+-- Inserts in Visits table
+INSERT INTO Visits (Visit_ID, Patient_ID, Visit_Date, Doctor_ID, Reason, Notes) 
+VALUES (1, 1, TO_DATE('2024-05-10', 'YYYY-MM-DD'), 101, 'Cough', 'Prescribed antibiotics and rest.');
+
+INSERT INTO Visits (Visit_ID, Patient_ID, Visit_Date, Doctor_ID, Reason, Notes) 
+VALUES (2, 2, TO_DATE('2024-03-22', 'YYYY-MM-DD'), 103, 'Checkup', 'Routine school checkup.');
+
+INSERT INTO Visits (Visit_ID, Patient_ID, Visit_Date, Doctor_ID, Reason, Notes) 
+VALUES (3, 3, TO_DATE('2024-02-14', 'YYYY-MM-DD'), 104, 'Fever', 'Prescribed paracetamol.');
+
+INSERT INTO Visits (Visit_ID, Patient_ID, Visit_Date, Doctor_ID, Reason, Notes) 
+VALUES (4, 1, TO_DATE('2024-06-01', 'YYYY-MM-DD'), 105, 'Injury', 'Minor wound cleaned and bandaged.');
+
+INSERT INTO Visits (Visit_ID, Patient_ID, Visit_Date, Doctor_ID, Reason, Notes) 
+VALUES (5, 5, TO_DATE('2024-01-10', 'YYYY-MM-DD'), 102, 'Vaccination', 'MMR vaccine dose 2 administered.');
+
+
+-- Inserts into Lab_Results
+INSERT INTO Lab_Results (Result_ID, Visit_ID, Test_Name, Result_Value, Normal_Range, Test_Date) 
+VALUES (1, 1, 'CBC', 5.2, '4.5-6.5', TO_DATE('2024-05-11', 'YYYY-MM-DD'));
+
+INSERT INTO Lab_Results (Result_ID, Visit_ID, Test_Name, Result_Value, Normal_Range, Test_Date) 
+VALUES (2, 3, 'Glucose', 6.1, '3.5-5.5', TO_DATE('2024-02-15', 'YYYY-MM-DD'));
+
+INSERT INTO Lab_Results (Result_ID, Visit_ID, Test_Name, Result_Value, Normal_Range, Test_Date) 
+VALUES (3, 2, 'Cholesterol', 5.8, '3.0-5.0', TO_DATE('2024-03-23', 'YYYY-MM-DD'));
+
+INSERT INTO Lab_Results (Result_ID, Visit_ID, Test_Name, Result_Value, Normal_Range, Test_Date) 
+VALUES (4, 4, 'Uric Acid', 7.0, '3.5-7.0', TO_DATE('2024-06-02', 'YYYY-MM-DD'));
+
+INSERT INTO Lab_Results (Result_ID, Visit_ID, Test_Name, Result_Value, Normal_Range, Test_Date) 
+VALUES (5, 5, 'Liver Function', 6.0, '5.0-7.0', TO_DATE('2024-01-11', 'YYYY-MM-DD'));
+
+DROP TABLE Inventory CASCADE CONSTRAINTS PURGE;
+
+-- Inserts into Prescriptions
+INSERT INTO Prescriptions (Prescription_ID, Visit_ID, Medicine_ID, Dosage, Frequency, Start_Date, End_Date) 
+VALUES (1, 1, 2, '500mg', 'Twice a day', TO_DATE('2024-05-10', 'YYYY-MM-DD'), TO_DATE('2024-05-15', 'YYYY-MM-DD'));
+
+INSERT INTO Prescriptions (Prescription_ID, Visit_ID, Medicine_ID, Dosage, Frequency, Start_Date, End_Date) 
+VALUES (2, 3, 1, '250mg', 'Thrice a day', TO_DATE('2024-02-14', 'YYYY-MM-DD'), TO_DATE('2024-02-19', 'YYYY-MM-DD'));
+
+INSERT INTO Prescriptions (Prescription_ID, Visit_ID, Medicine_ID, Dosage, Frequency, Start_Date, End_Date) 
+VALUES (3, 4, 5, '400mg', 'Once a day', TO_DATE('2024-06-01', 'YYYY-MM-DD'), TO_DATE('2024-06-05', 'YYYY-MM-DD'));
+
+INSERT INTO Prescriptions (Prescription_ID, Visit_ID, Medicine_ID, Dosage, Frequency, Start_Date, End_Date) 
+VALUES (4, 2, 3, '500mg', 'Twice a day', TO_DATE('2024-03-22', 'YYYY-MM-DD'), TO_DATE('2024-03-27', 'YYYY-MM-DD'));
+
+INSERT INTO Prescriptions (Prescription_ID, Visit_ID, Medicine_ID, Dosage, Frequency, Start_Date, End_Date) 
+VALUES (5, 5, 4, '5ml', 'Once daily', TO_DATE('2024-01-10', 'YYYY-MM-DD'), TO_DATE('2024-01-15', 'YYYY-MM-DD'));
+
+-- Inserts into Allergies
+INSERT INTO Allergies (Allergy_ID, Patient_ID, Allergen, Severity, Notes) 
+VALUES (1, 1, 'Peanuts', 'Moderate', 'Reaction since early childhood');
+
+INSERT INTO Allergies (Allergy_ID, Patient_ID, Allergen, Severity, Notes) 
+VALUES (2, 3, 'Dust', 'Mild', 'Seasonal sneezing and runny nose');
+
+INSERT INTO Allergies (Allergy_ID, Patient_ID, Allergen, Severity, Notes) 
+VALUES (3, 2, 'Penicillin', 'Severe', 'Causes rashes and swelling');
+
+INSERT INTO Allergies (Allergy_ID, Patient_ID, Allergen, Severity, Notes) 
+VALUES (4, 5, 'Pollen', 'Mild', 'Observed in spring');
+
+INSERT INTO Allergies (Allergy_ID, Patient_ID, Allergen, Severity, Notes) 
+VALUES (5, 4, 'Latex', 'Moderate', 'Developed during surgery prep');
+
+-- Inserts into Vaccinations
+INSERT INTO Vaccinations (Vaccine_ID, Patient_ID, Vaccine_Name, Dose_Number, Administered_Date) 
+VALUES (1, 1, 'MMR', 1, TO_DATE('2024-01-10', 'YYYY-MM-DD'));
+
+INSERT INTO Vaccinations (Vaccine_ID, Patient_ID, Vaccine_Name, Dose_Number, Administered_Date) 
+VALUES (2, 1, 'Polio', 3, TO_DATE('2024-01-20', 'YYYY-MM-DD'));
+
+INSERT INTO Vaccinations (Vaccine_ID, Patient_ID, Vaccine_Name, Dose_Number, Administered_Date) 
+VALUES (3, 2, 'Typhoid', 1, TO_DATE('2024-02-18', 'YYYY-MM-DD'));
+
+INSERT INTO Vaccinations (Vaccine_ID, Patient_ID, Vaccine_Name, Dose_Number, Administered_Date) 
+VALUES (4, 3, 'Hepatitis B', 2, TO_DATE('2024-03-05', 'YYYY-MM-DD'));
+
+INSERT INTO Vaccinations (Vaccine_ID, Patient_ID, Vaccine_Name, Dose_Number, Administered_Date) 
+VALUES (5, 4, 'COVID-19', 1, TO_DATE('2024-06-10', 'YYYY-MM-DD'));
+
+-- Inserts into Hospital
+INSERT INTO Hospitals (Hospital_ID, Name, Address, Contact) VALUES
+(1, 'Teaching Hospital', 'Maharajgunj, Kathmandu', '014410000'),
+(2, 'Norvic International', 'Thapathali, Kathmandu', '014250000'),
+(3, 'Gandaki Hospital', 'Pokhara', '061540000');
+
+-- Inserts into Department
+INSERT INTO Departments (Department_ID, Name, Hospital_ID) VALUES
+(1, 'Outpatient', 1),
+(2, 'Child Health', 2),
+(3, 'Cardiac', 3),
+(4, 'ENT', 1),
+(5, 'Skin', 2),
+(6, 'Bones', 3),
+(7, 'Brain', 1),
+(8, 'Internal', 2),
+(9, 'Mental Health', 3),
+(10, 'Primary Care', 1);
+
+
+-- Inserts into Doctors
+INSERT INTO Doctors (Doctor_ID, Name, Specialization, Contact, Email, Experience_Years, Availability, Department_ID) VALUES
+(101, 'Dr. General A', 'General Physician', '9801566502', 'dra@teaching.com', 7, 'Mon-Fri 9AM–5PM', 1),
+(102, 'Dr. Pediatrics B', 'Pediatrics', '9801205602', 'drb@norvic.com', 5, 'Mon-Fri 9AM–5PM', 2),
+(103, 'Dr. Cardiology C', 'Cardiology', '9801843254', 'drc@gandaki.com', 5, 'Mon-Fri 9AM–5PM', 3),
+(104, 'Dr. ENT D', 'ENT', '9801391093', 'drd@teaching.com', 10, 'Mon-Fri 9AM–5PM', 4),
+(105, 'Dr. Dermatology E', 'Dermatology', '9801170421', 'dre@norvic.com', 19, 'Mon-Fri 9AM–5PM', 5);
+
+
+INSERT INTO Doctors (Doctor_ID, Name, Specialization, Contact, Email, Experience_Years, Availability, Department_ID)
+VALUES (112, 'Dr. Alisha Mahat', 'Gastroenterology', '9801666222', 'amahat@norvic.com', 8, 'Mon-Fri 10AM–4PM', 2);
+
+
+CREATE TABLE Patients (
+    Patient_ID NUMBER PRIMARY KEY,
+    Name VARCHAR2(100),
+    DOB DATE,
+    Gender VARCHAR2(10),
+    Contact VARCHAR2(20),
+    Address VARCHAR2(200),
+    Blood_Type VARCHAR2(5),
+    Insurance_ID NUMBER
+);
+
+CREATE TABLE Visits (
+    Visit_ID NUMBER PRIMARY KEY,
+    Patient_ID NUMBER REFERENCES Patients(Patient_ID),
+    Visit_Date DATE,
+    Doctor_ID NUMBER,
+    Reason VARCHAR2(200),
+    Notes CLOB
+);
+
+CREATE TABLE Lab_Results (
+    Result_ID NUMBER,
+    Visit_ID NUMBER,
+    Test_Name VARCHAR2(100),
+    Result_Value NUMBER,
+    Normal_Range VARCHAR2(50),
+    Test_Date DATE
+)
+PARTITION BY RANGE (Test_Date) (
+    PARTITION p2022 VALUES LESS THAN (TO_DATE('2023-01-01','YYYY-MM-DD')),
+    PARTITION p2023 VALUES LESS THAN (TO_DATE('2024-01-01','YYYY-MM-DD')),
+    PARTITION p2024 VALUES LESS THAN (TO_DATE('2025-01-01','YYYY-MM-DD')),
+    PARTITION pmax VALUES LESS THAN (MAXVALUE)
+);
+
+
+CREATE TABLE Prescriptions (
+    Prescription_ID NUMBER PRIMARY KEY,
+    Visit_ID NUMBER REFERENCES Visits(Visit_ID),
+    Medicine_ID NUMBER REFERENCES Medications(Medicine_ID),
+    Dosage VARCHAR2(50),
+    Frequency VARCHAR2(50),
+    Start_Date DATE,
+    End_Date DATE
+);
+
+CREATE TABLE Allergies (
+    Allergy_ID NUMBER PRIMARY KEY,
+    Patient_ID NUMBER REFERENCES Patients(Patient_ID),
+    Allergen VARCHAR2(100),
+    Severity VARCHAR2(20),
+    Notes VARCHAR2(200)
+);
+
+CREATE TABLE Vaccinations (
+    Vaccine_ID NUMBER PRIMARY KEY,
+    Patient_ID NUMBER REFERENCES Patients(Patient_ID),
+    Vaccine_Name VARCHAR2(100),
+    Dose_Number NUMBER,
+    Administered_Date DATE
+);
+
+
+-- Patients with abnormal lab results in the last 3 months
+WITH Parsed_Lab_Results AS (
+  SELECT
+    l.Result_ID,
+    l.Visit_ID,
+    l.Test_Name,
+    TO_NUMBER(l.Result_Value) AS Result_Value,
+    TO_NUMBER(REGEXP_SUBSTR(l.Normal_Range, '^\d+(\.\d+)?')) AS min_val,
+    TO_NUMBER(REGEXP_SUBSTR(l.Normal_Range, '\d+(\.\d+)?$')) AS max_val,
+    l.Test_Date,
+    v.Patient_ID
+  FROM Lab_Results l
+  JOIN Visits v ON l.Visit_ID = v.Visit_ID
+  WHERE l.Test_Date >= ADD_MONTHS(
+      (SELECT MAX(Test_Date) FROM Lab_Results),
+      -3
+    )
+),
+is_abnormal AS(
+    SELECT
+  p.Patient_ID,
+  p.Name AS Patient_Name,
+  plr.Test_Name,
+  plr.Result_Value,
+  plr.min_val,
+  plr.max_val,
+  plr.Test_Date,
+  CASE
+    WHEN plr.min_val IS NOT NULL AND plr.max_val IS NOT NULL AND
+         (plr.Result_Value < plr.min_val OR plr.Result_Value > plr.max_val)
+    THEN 1
+    ELSE 0
+  END AS is_abnormal
+FROM Parsed_Lab_Results plr
+JOIN Patients p ON plr.Patient_ID = p.Patient_ID)
+SELECT * FROM is_abnormal isab WHERE isab.is_abnormal = 1;
+
+
+-- List of medications prescribed by each doctor.
+SELECT 
+    d.Doctor_ID,
+    d.Name AS Doctor_Name,
+    d.Specialization,
+    m.Name AS Medicine_Name,
+    COUNT(*) AS Times_Prescribed
+FROM Doctors d
+JOIN Visits v ON d.Doctor_ID = v.Doctor_ID
+JOIN Prescriptions p ON v.Visit_ID = p.Visit_ID
+JOIN Medications m ON p.Medicine_ID = m.Medicine_ID
+GROUP BY d.Doctor_ID, d.Name, d.Specialization, m.Name
+ORDER BY d.Doctor_ID, Times_Prescribed DESC;
+
+-- Patients with known allergies to prescribed medications.
+SELECT DISTINCT pa.Patient_ID, pa.Name, m.Name AS Medication
+FROM Prescriptions pr
+JOIN Visits v ON pr.Visit_ID = v.Visit_ID
+JOIN Patients pa ON v.Patient_ID = pa.Patient_ID
+JOIN Medications m ON pr.Medicine_ID = m.Medicine_ID
+JOIN Allergies a ON a.Patient_ID = pa.Patient_ID
+WHERE LOWER(a.Allergen) LIKE '%' || LOWER(m.Name) || '%';
+
+-- Vaccination history for patients under age 12
+SELECT p.Patient_ID, p.Name, v.Vaccine_Name, v.Administered_Date
+FROM Patients p
+JOIN Vaccinations v ON p.Patient_ID = v.Patient_ID
+WHERE MONTHS_BETWEEN(SYSDATE, p.DOB) < 12 * 12;
